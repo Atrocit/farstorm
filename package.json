@@ -1,0 +1,59 @@
+{
+  "name": "farstorm",
+  "description": "Farstorm - First Access Retrieval Structurally Typed ORM for PostgreSQL",
+  "version": "1.3.0",
+  "main": "./build/src/main.js",
+  "type": "commonjs",
+  "author": "Rick Lubbers <rick.lubbers@atrocit.com>",
+  "license": "ISC",
+  "private": false,
+  "devDependencies": {
+    "@changesets/cli": "^2.27.1",
+    "@electric-sql/pglite": "^0.3.0",
+    "@types/jest": "^29.5.12",
+    "@types/lodash": "^4.14.202",
+    "@types/pg": "^8.11.0",
+    "@types/pg-format": "^1.0.5",
+    "@typescript-eslint/eslint-plugin": "^7.1.0",
+    "@typescript-eslint/parser": "^7.1.0",
+    "eslint": "^8.57.0",
+    "eslint-import-resolver-typescript": "^3.6.1",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-jest": "^27.9.0",
+    "jest": "^29.7.0",
+    "rimraf": "^5.0.5",
+    "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "events": "^3.3.0",
+    "lodash": "^4.17.21",
+    "pg": "^8.11.3",
+    "pg-format": "^1.0.4"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest run --watch",
+    "lint": "eslint . --ext .ts",
+    "build": "rimraf ./build && tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "module": "./build/src/main.js",
+  "types": "./build/src/main.d.ts",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": "https://github.com/Atrocit/Farstorm",
+  "exports": {
+    ".": {
+      "import": "./build/src/main.js",
+      "require": "./build/src/main.js",
+      "types": "./build/src/main.d.ts"
+    }
+  }
+}
