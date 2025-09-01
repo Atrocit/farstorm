@@ -8,7 +8,7 @@ jobs:
       NPM_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     strategy:
       matrix:
-        node-version: [ 20.x ]
+        node-version: [ 24.x ]
     steps:
       - uses: actions/checkout@v4
       - name: Use Node.js ${{ matrix.node-version }}
@@ -30,14 +30,14 @@ jobs:
       NPM_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     strategy:
       matrix:
-        node-version: [ 20.x ]
+        node-version: [ 20.x, 22.x, 24.x ]
     services:
       postgres:
         image: postgres:latest
         env:
           POSTGRES_USER: pg
           POSTGRES_PASSWORD: pg
-          POSTGRES_DB: orm
+          POSTGRES_DB: farstorm
         ports:
           - 5432:5432
         options: >-
@@ -60,6 +60,6 @@ jobs:
         env:
           BASEURL: http://localhost:3000
           DB_HOST: localhost
-          DB_NAME: orm
+          DB_NAME: farstorm
           DB_PASSWORD: pg
           DB_USERNAME: pg

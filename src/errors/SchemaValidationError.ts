@@ -1,4 +1,4 @@
-import { QueryStatsQuery } from '../main';
+import { QueryStatsQuery } from '../main.js';
 
 type SchemaValidationErrorContext = {
 	entity?: string,

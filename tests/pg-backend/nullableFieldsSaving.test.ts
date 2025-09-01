@@ -1,3 +1,4 @@
+import { describe, it, test, expect } from 'vitest';
 import { Farstorm, defineCustomField, defineEntity, defineField, defineIdField, sql } from '../../src/main';
 
 export type ContainerFillStatus = 'EMPTY' | 'FULL';

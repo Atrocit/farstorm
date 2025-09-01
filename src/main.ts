@@ -1,5 +1,5 @@
 import { ConnectionDetails as PgConnectionDetails, PostgresqlDriver } from './drivers/postgresql.js';
-import { ConnectionDetails as PgLiteConnectionDetails, PgLiteDriver } from './drivers/pglite.js';
+import type { ConnectionDetails as PgLiteConnectionDetails } from './drivers/pglite.js';
 import { ConnectionDetails as DummyConnectionDetails, DummyDriver } from './drivers/dummy.js';
 import { BaseEntity, defineCustomField, defineEntity, defineField, defineIdField } from './entities/BaseEntity.js';
 import { camelCaseToSnakeCase, CamelToSnakeCase, IdSuffixed, snakeCaseToCamelCase, suffixId } from './util/strings.js';
@@ -7,12 +7,12 @@ import { sql, SqlStatement } from './helpers/sql.js';
 import format from 'pg-format';
 import { Driver } from './drivers/Driver.js';
 import { ChangeTracker } from './ChangeTracker.js';
-import { OrmError } from './errors/OrmError';
-import { checkEntityDefinitions } from './entities/entityDefinitionsChecks';
-import { validateSchema as validateSchemaActual } from './validateSchema';
-import { SchemaValidationError } from './errors/SchemaValidationError';
-import { EntityCache } from './EntityCache';
-import EventEmitter from './helpers/MyEventEmitter';
+import { OrmError } from './errors/OrmError.js';
+import { checkEntityDefinitions } from './entities/entityDefinitionsChecks.js';
+import { validateSchema as validateSchemaActual } from './validateSchema.js';
+import { SchemaValidationError } from './errors/SchemaValidationError.js';
+import { EntityCache } from './EntityCache.js';
+import EventEmitter from './helpers/MyEventEmitter.js';
 import { RelationCache } from './RelationCache.js';
 
 // Magic getter constant
@@ -75,15 +75,15 @@ type OutputTypeRef<ED extends BaseEntityDefinitions, E extends EntityDefinition<
 // Define input type for save functions
 type InputTypeFields<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> =
 	{ -readonly [N in keyof E['fields'] as E['fields'][N]['nullableOnInput'] extends true ? never : N]: FieldType<ED, E, N> } // mandatory properties
-	& { -readonly [N in keyof E['fields'] as E['fields'][N]['nullableOnInput'] extends true ? N : never]?: FieldType<ED, E, N> | null | undefined } // optionals
+	& { -readonly [N in keyof E['fields'] as E['fields'][N]['nullableOnInput'] extends true ? N : never]?: FieldType<ED, E, N> | null | undefined }; // optionals
 
 type InputTypeOneToOneOwned<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> =
 	{ -readonly [N in keyof E['oneToOneOwned'] as E['oneToOneOwned'][N]['nullable'] extends true ? never : N]: OutputTypeRef<ED, EntityByName<ED, E['oneToOneOwned'][N]['entity']>> } // mandatory properties
-	& { -readonly [N in keyof E['oneToOneOwned'] as E['oneToOneOwned'][N]['nullable'] extends true ? N : never]?: OutputTypeRef<ED, EntityByName<ED, E['oneToOneOwned'][N]['entity']>> | null | undefined } // optionals
+	& { -readonly [N in keyof E['oneToOneOwned'] as E['oneToOneOwned'][N]['nullable'] extends true ? N : never]?: OutputTypeRef<ED, EntityByName<ED, E['oneToOneOwned'][N]['entity']>> | null | undefined }; // optionals
 
 type InputTypeManyToOne<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> =
 	{ -readonly [N in keyof E['manyToOne'] as E['manyToOne'][N]['nullable'] extends true ? never : N]: OutputTypeRef<ED, EntityByName<ED, E['manyToOne'][N]['entity']>> } // mandatory properties
-	& { -readonly [N in keyof E['manyToOne'] as E['manyToOne'][N]['nullable'] extends true ? N : never]?: OutputTypeRef<ED, EntityByName<ED, E['manyToOne'][N]['entity']>> | null | undefined } // optionals
+	& { -readonly [N in keyof E['manyToOne'] as E['manyToOne'][N]['nullable'] extends true ? N : never]?: OutputTypeRef<ED, EntityByName<ED, E['manyToOne'][N]['entity']>> | null | undefined }; // optionals
 
 type InputTypeWithId<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> =
 	InputTypeFields<ED, E> & InputTypeOneToOneOwned<ED, E> & InputTypeManyToOne<ED, E> & {
@@ -198,7 +198,33 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 		if (connectionDetails.type == 'postgresql') {
 			this.driver = new PostgresqlDriver(connectionDetails);
 		} else if (connectionDetails.type == 'pglite') {
-			this.driver = new PgLiteDriver(connectionDetails);
+			this.driver = new (class LazyPgLiteDriver extends EventEmitter {
+				private real: any | null = null;
+				private cd: PgLiteConnectionDetails;
+				constructor(cd: PgLiteConnectionDetails) {
+					super();
+					this.cd = cd;
+				}
+
+				private async ensure() {
+					if (this.real) return this.real;
+					try {
+						const mod = await import('./drivers/pglite.js');
+						this.real = new mod.PgLiteDriver(this.cd);
+						// proxy events
+						this.real.on('error', (...args: any[]) => this.emit('error', ...args));
+						this.real.on('warning', (...args: any[]) => this.emit('warning', ...args));
+						return this.real;
+					} catch (e) {
+						throw new Error("PgLite driver not available. Install '@electric-sql/pglite' to use the pglite backend.");
+					}
+				}
+
+				async startTransaction(options?: { readOnly?: boolean }) {
+					const d = await this.ensure();
+					return d.startTransaction(options);
+				}
+			})(connectionDetails as PgLiteConnectionDetails);
 		} else if (connectionDetails.type == 'dummy') {
 			this.driver = new DummyDriver(connectionDetails);
 		} else {
@@ -1054,5 +1080,5 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 
 export { sql } from './helpers/sql.js';
 export { unwrap, unwrapAll } from './helpers/unwrap.js';
-export { defineEntity, defineIdField, defineField, defineCustomField, defineAutogeneratedField } from './entities/BaseEntity';
-export { ChangeTracker } from './ChangeTracker';
+export { defineEntity, defineIdField, defineField, defineCustomField, defineAutogeneratedField } from './entities/BaseEntity.js';
+export { ChangeTracker } from './ChangeTracker.js';

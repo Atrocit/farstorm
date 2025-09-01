@@ -5,9 +5,11 @@
 
 type Unwrapped<T extends Record<string, any>, P extends string> = {
 	-readonly [K in keyof T as [ P, T[K] ] extends [ `${K & string}${string}`, Promise<Array<any>> ] ? K : never]:
+	// eslint-disable-next-line @stylistic/indent
 		P extends `${K & string}.${infer Path}` ? Unwrapped<Awaited<T[K]>[number], Path>[] : Awaited<T[K][number]>[]
 } & {
 	-readonly [K in keyof T as [ P, T[K] ] extends [ `${K & string}${string}`, Promise<any> ] ? K : never]:
+	// eslint-disable-next-line @stylistic/indent
 		(P extends `${K & string}.${infer SubPath}` ? Unwrapped<Awaited<T[K]>, SubPath> : Awaited<T[K]>)
 } & {
 	-readonly [K in keyof T as P extends `${K & string}${string}` ? never : K]: T[K]

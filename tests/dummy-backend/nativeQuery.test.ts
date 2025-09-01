@@ -1,5 +1,5 @@
 import { sql, Farstorm } from '../../src/main.js';
-import { vi } from 'vitest';
+import { describe, it, test, expect, vi } from 'vitest';
 
 function stitch(fn: (sqlString: string) => Promise<{ rows: any[] }>) {
 	return function(sqlStringSub: string, params: any[]) {

@@ -1,6 +1,6 @@
 import { Pool, types } from 'pg';
 import { Driver, TransactionControls } from './Driver.js';
-import EventEmitter from '../helpers/MyEventEmitter';
+import EventEmitter from '../helpers/MyEventEmitter.js';
 
 export type ConnectionDetails = {
 	type: 'postgresql',

@@ -1,3 +1,4 @@
+import { describe, it, test, expect } from 'vitest';
 import { unwrap } from '../../src/helpers/unwrap';
 
 describe('Unwrap helper function', () => {
@@ -21,7 +22,7 @@ describe('Unwrap helper function', () => {
 
 	it('Should resolve promise at given path, multi level deep, leaving other nested objects/promises untouched', async () => {
 		const input = { a: 1, b: Promise.resolve({ c: Promise.resolve(1), d: Promise.resolve({ e: Promise.resolve(1) }) }) };
-		const output: { a: number, b: { c: number, d: Promise<{ e: Promise<number> }>} } = await unwrap(input, [ 'b.c' ]);
+		const output: { a: number, b: { c: number, d: Promise<{ e: Promise<number> }> } } = await unwrap(input, [ 'b.c' ]);
 		expect(output).toEqual({ a: 1, b: { c: 1, d: Promise.resolve({ e: Promise.resolve(1) }) } });
 	});
 

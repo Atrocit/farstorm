@@ -1,5 +1,5 @@
 import { Driver, TransactionControls } from './Driver.js';
-import EventEmitter from '../helpers/MyEventEmitter';
+import EventEmitter from '../helpers/MyEventEmitter.js';
 import { PGlite, types } from '@electric-sql/pglite';
 // @ts-ignore
 import { fuzzystrmatch } from '@electric-sql/pglite/contrib/fuzzystrmatch';

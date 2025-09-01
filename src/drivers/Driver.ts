@@ -1,4 +1,4 @@
-import EventEmitter from '../helpers/MyEventEmitter';
+import EventEmitter from '../helpers/MyEventEmitter.js';
 
 export interface Driver extends EventEmitter {
 	startTransaction(options?: { readOnly?: boolean }): Promise<TransactionControls>;

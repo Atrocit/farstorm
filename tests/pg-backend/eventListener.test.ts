@@ -1,6 +1,6 @@
 import { Farstorm, sql } from '../../src/main.js';
 import { defineEntity, defineField, defineIdField } from '../../src/entities/BaseEntity';
-import { vi } from 'vitest';
+import { describe, it, test, expect, vi } from 'vitest';
 
 describe('Postgres: EventListener', () => {
 	async function setup() {

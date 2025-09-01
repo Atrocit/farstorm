@@ -1,5 +1,5 @@
 import { Driver } from './Driver.js';
-import EventEmitter from '../helpers/MyEventEmitter';
+import EventEmitter from '../helpers/MyEventEmitter.js';
 
 export type ConnectionDetails = {
 	type: 'dummy',

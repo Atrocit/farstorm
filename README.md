@@ -11,7 +11,7 @@ So why should you care? Because this library does four things we've yet to see a
 ## How to use
 Any node and npm-compatible project can use this library by installing `farstorm`. Here is a code snippet that shows how you can use it:
 
-```typescript
+```ts
 const farstorm = new Farstorm({
 	type: 'postgresql',
 	host: process.env['DB_HOST'] ?? 'localhost',
@@ -54,6 +54,28 @@ await farstorm.inTransaction(async orm => {
 	}
 });
 ```
+
+## Drivers
+- PostgreSQL: Fully supported out of the box via the `postgresql` driver (uses the `pg` package).
+- PgLite: An optional in-process PostgreSQL-compatible driver. If you use `type: 'pglite'`, you must install the PGlite package yourself, as it is not a required dependency of Farstorm.
+
+Installation when using PgLite:
+- npm: `npm install @electric-sql/pglite`
+- yarn: `yarn add @electric-sql/pglite`
+
+Example usage with PgLite:
+```ts
+import { Farstorm, defineEntity, defineIdField, defineField, sql } from 'farstorm';
+
+const orm = new Farstorm({
+	type: 'pglite',
+	// optional: databasePath or file config per @electric-sql/pglite docs
+}, {
+	// Define your entities here as usual
+});
+```
+
+If `@electric-sql/pglite` is not installed and you instantiate the PgLite driver, Farstorm will throw a clear runtime error indicating you need to install it.
 
 ## License
 This projected is licensed under the ISC License, a permissive open source license. The short summary is that you can use this project for any purpose you want, but none of the authors or contributors are liable for anything.

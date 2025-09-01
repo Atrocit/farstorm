@@ -1,3 +1,4 @@
+import { describe, it, test, expect } from 'vitest';
 import { Farstorm, defineEntity, defineField, defineIdField, sql } from '../../src/main';
 
 describe('Fetching inverse one-to-one relations', () => {

@@ -1,3 +1,4 @@
+import { describe, it, test, expect } from 'vitest';
 import { unwrap } from '../../src/helpers/unwrap';
 import { Farstorm, defineEntity, defineField, defineIdField, sql } from '../../src/main';
 import { hideRelations } from '../testHelpers';

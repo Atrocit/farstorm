@@ -1,3 +1,4 @@
+import { describe, it, test, expect } from 'vitest';
 import { Farstorm, sql } from "../../src/main";
 
 describe('Postgres: connectionLimit', () => {

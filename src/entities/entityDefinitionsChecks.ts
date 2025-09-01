@@ -1,5 +1,5 @@
-import { BaseEntity } from './BaseEntity';
-import { OrmError } from '../errors/OrmError';
+import { BaseEntity } from './BaseEntity.js';
+import { OrmError } from '../errors/OrmError.js';
 
 export function checkEntityDefinitions(entityDefinitions: Record<string, BaseEntity>) {
 	// Find conflicting fields and relations

@@ -1,3 +1,4 @@
+import { describe, it, test, expect } from 'vitest';
 import { Farstorm, SchemaValidationResult, sql } from '../../src/main.js';
 import { BaseEntity, defineEntity, defineField, defineIdField } from '../../src/entities/BaseEntity';
 

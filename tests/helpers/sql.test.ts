@@ -1,3 +1,4 @@
+import { describe, it, test, expect } from 'vitest';
 import { sql } from '../../src/helpers/sql.js';
 
 describe('sql tagged template literal', () => {
