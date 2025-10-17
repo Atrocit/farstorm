@@ -1,1 +1,3 @@
-export type IsNullable<T extends boolean> = T extends true ? null : never;
+import { Nullable } from "../entities/Nullable.js";
+
+export type IsNullable<T extends Nullable> = T extends true | 'NULLABLE' ? null : never;

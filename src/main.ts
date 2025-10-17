@@ -19,6 +19,7 @@ import { validateSchema as validateSchemaActual } from './tools/validateSchema.j
 import { InputType } from './types/InputType.js';
 import { RawSqlType } from './types/RawSqlType.js';
 import { isOrmRelationGetter, ormRelationGetter } from './relations/ormRelationGetter.js';
+import { isNullable } from './entities/Nullable.js';
 
 export type QueryStatsQuery = { query: string, params: any[], durationInMs: number };
 export type QueryStats = { queries: QueryStatsQuery[] };
@@ -228,7 +229,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 
 				const relationRawFieldName = suffixId(camelCaseToSnakeCase(relationName as string));
 				if (result[relationRawFieldName] == null) {
-					if (!relation.nullable) throw new OrmError('ORM-1102', { entity: entityName as string, relation: relationName, operation: 'resolve-one-to-one-owned' }, queryStatistics.queries);
+					if (!isNullable(relation.nullable)) throw new OrmError('ORM-1102', { entity: entityName as string, relation: relationName, operation: 'resolve-one-to-one-owned' }, queryStatistics.queries);
 					output[relationName] = null;
 					continue;
 				}
@@ -243,7 +244,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 					if (cached == null) throw new OrmError('ORM-1001', { entity: entityName as string, relation: relationName, operation: 'resolve-one-to-one-owned' });
 
 					const rawResult = localCache.get(relation.entity, result[relationRawFieldName]);
-					if (rawResult == null && !relation.nullable) {
+					if (rawResult == null && !isNullable(relation.nullable)) {
 						throw new OrmError('ORM-1121', { entity: entityName as string, relation: relationName, operation: 'resolve-one-to-one-owned' }, queryStatistics.queries);
 					}
 					return rawResult == null ? null : createOutputTypeFromRawSqlType(relation.entity, rawResult);
@@ -258,7 +259,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 
 				const relationRawFieldName = suffixId(camelCaseToSnakeCase(relationName as string));
 				if (result[relationRawFieldName] == null) {
-					if (!relation.nullable) throw new OrmError('ORM-1122', { entity: entityName as string, relation: relationName, operation: 'resolve-many-to-one' }, queryStatistics.queries);
+					if (!isNullable(relation.nullable)) throw new OrmError('ORM-1122', { entity: entityName as string, relation: relationName, operation: 'resolve-many-to-one' }, queryStatistics.queries);
 					output[relationName] = null;
 					continue;
 				}
@@ -273,7 +274,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 					if (cached == null) throw new OrmError('ORM-1001', { entity: entityName as string, relation: relationName, operation: 'resolve-many-to-one' });
 
 					const rawResult = localCache.get(relation.entity, result[relationRawFieldName]);
-					if (rawResult == null && !relation.nullable) {
+					if (rawResult == null && !isNullable(relation.nullable)) {
 						throw new OrmError('ORM-1121', { entity: entityName as string, relation: relationName, operation: 'resolve-many-to-one' }, queryStatistics.queries);
 					}
 					return rawResult == null ? null : createOutputTypeFromRawSqlType(relation.entity, rawResult);
@@ -298,7 +299,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 					const items = (cached.inverseMap[result.id as string] ?? []).map(item => localCache.get(relation.entity, item.id)).filter(x => x != null);
 					if (items.length > 1) {
 						throw new OrmError('ORM-1100', { entity: entityName as string, relation: relationName, operation: 'resolve-one-to-one-inverse' }, queryStatistics.queries);
-					} else if (items.length == 0 && !relation.nullable) {
+					} else if (items.length == 0 && !isNullable(relation.nullable)) {
 						throw new OrmError('ORM-1101', { entity: entityName as string, relation: relationName, operation: 'resolve-one-to-one-inverse' }, queryStatistics.queries);
 					} else {
 						const item = items[0] ?? null;
@@ -617,7 +618,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 					const fieldDefinition = entityDefinition.fields[field];
 					if (field == 'id' && e[field] == null) continue; // We don't want to set the ID to null
 
-					if (e[field] == null && !entityDefinition.fields[field].nullableOnInput) {
+					if (e[field] == null && !isNullable(entityDefinition.fields[field].nullableOnInput)) {
 						throw new OrmError('ORM-1301', { entity: entityName as string, field, operation: 'saveMany' }, queryStatistics.queries);
 					}
 
@@ -636,7 +637,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 
 					// If the relation is nullable and the value is null, we should set the field to null
 					const resolvedRelation: any = await e[relation];
-					if (!relationDefinition.nullable && resolvedRelation == null) throw new OrmError('ORM-1302', { entity: entityName as string, relation, operation: 'saveMany' }, queryStatistics.queries);
+					if (!isNullable(relationDefinition.nullable) && resolvedRelation == null) throw new OrmError('ORM-1302', { entity: entityName as string, relation, operation: 'saveMany' }, queryStatistics.queries);
 					if (resolvedRelation != null && resolvedRelation.id == null) throw new OrmError('ORM-1303', { entity: entityName as string, relation, operation: 'saveMany' }, queryStatistics.queries);
 					rawEntityFieldsToWrite[relationRawFieldName] = resolvedRelation?.id ?? null;
 				}
@@ -651,7 +652,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 
 					// If the relation is nullable and the value is null, we should set the field to null
 					const resolvedRelation: any = await e[relation];
-					if (!relationDefinition.nullable && resolvedRelation == null) throw new OrmError('ORM-1304', { entity: entityName as string, relation, operation: 'saveMany' }, queryStatistics.queries);
+					if (!isNullable(relationDefinition.nullable) && resolvedRelation == null) throw new OrmError('ORM-1304', { entity: entityName as string, relation, operation: 'saveMany' }, queryStatistics.queries);
 					if (resolvedRelation != null && resolvedRelation.id == null) throw new OrmError('ORM-1305', { entity: entityName as string, relation, operation: 'saveMany' }, queryStatistics.queries);
 					rawEntityFieldsToWrite[relationRawFieldName] = resolvedRelation?.id ?? null;
 				}
@@ -668,7 +669,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 			if (entitiesToInsert.length > 0) {
 				// Generate field names to insert, leaving out fields that are nullable on input and are null for the entire batch
 				const rawFields = Object.keys(entitiesToInsert[0])
-					.filter(rawFieldName => entityDefinition.fields[snakeCaseToCamelCase(rawFieldName)] == null || !entityDefinition.fields[snakeCaseToCamelCase(rawFieldName)].nullableOnInput || entitiesToInsert.some(e => e[rawFieldName] != null));
+					.filter(rawFieldName => entityDefinition.fields[snakeCaseToCamelCase(rawFieldName)] == null || !isNullable(entityDefinition.fields[snakeCaseToCamelCase(rawFieldName)].nullableOnInput) || entitiesToInsert.some(e => e[rawFieldName] != null));
 
 				let insertResult;
 				if (rawFields.length > 0) {
