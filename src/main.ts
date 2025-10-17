@@ -211,7 +211,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 		 * This takes the raw SQL result and converts it into a proper OutputType for the entity
 		 * This function is responsible for putting in the Promise getters which will actually fetch any relations
 		 */
-		const prepEntity = <N extends EntityName<ED>>(entityName: N, result: RawSqlType<ED, EntityByName<ED, N>>): OutputType<ED, EntityByName<ED, N>> => {
+		const createOutputTypeFromRawSqlType = <N extends EntityName<ED>>(entityName: N, result: RawSqlType<ED, EntityByName<ED, N>>): OutputType<ED, EntityByName<ED, N>> => {
 			const entityDefinition = this.entityDefinitions[entityName];
 			const output: Record<string, any> = {}; // Realistically the type is way stricter, more like Record<FieldNames<EntityByName<N>> | RelationNames<EntityByName<N>>, any>
 
@@ -246,7 +246,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 					if (rawResult == null && !relation.nullable) {
 						throw new OrmError('ORM-1121', { entity: entityName as string, relation: relationName, operation: 'resolve-one-to-one-owned' }, queryStatistics.queries);
 					}
-					return rawResult == null ? null : prepEntity(relation.entity, rawResult);
+					return rawResult == null ? null : createOutputTypeFromRawSqlType(relation.entity, rawResult);
 				};
 				getOneToOneRelation[ormRelationGetter] = true;
 				Object.defineProperty(output, relationName, { enumerable: true, configurable: true, get: getOneToOneRelation, set: (value) => { Object.defineProperty(output, relationName, { value }); } });
@@ -276,7 +276,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 					if (rawResult == null && !relation.nullable) {
 						throw new OrmError('ORM-1121', { entity: entityName as string, relation: relationName, operation: 'resolve-many-to-one' }, queryStatistics.queries);
 					}
-					return rawResult == null ? null : prepEntity(relation.entity, rawResult);
+					return rawResult == null ? null : createOutputTypeFromRawSqlType(relation.entity, rawResult);
 				};
 				getManyToOneRelation[ormRelationGetter] = true;
 				Object.defineProperty(output, relationName, { enumerable: true, configurable: true, get: getManyToOneRelation, set: (value) => { Object.defineProperty(output, relationName, { value }); } });
@@ -302,7 +302,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 						throw new OrmError('ORM-1101', { entity: entityName as string, relation: relationName, operation: 'resolve-one-to-one-inverse' }, queryStatistics.queries);
 					} else {
 						const item = items[0] ?? null;
-						return item != null ? prepEntity(relation.entity, item) : null;
+						return item != null ? createOutputTypeFromRawSqlType(relation.entity, item) : null;
 					}
 				};
 				getOneToOneInverseRelation[ormRelationGetter] = true;
@@ -325,7 +325,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 					return (cached.inverseMap[result.id as string] ?? [])
 						.map(rawEntity => localCache.get(relation.entity, rawEntity.id))
 						.filter(cachedEntity => cachedEntity != null)
-						.map(cachedEntity => prepEntity(relation.entity, cachedEntity!));
+						.map(cachedEntity => createOutputTypeFromRawSqlType(relation.entity, cachedEntity!));
 				};
 				getOneToMany[ormRelationGetter] = true;
 				Object.defineProperty(output, relationName, { enumerable: true, configurable: true, get: getOneToMany });
@@ -333,105 +333,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 
 			return output as OutputType<ED, EntityByName<ED, N>>;
 		};
-
-		/**
-		 * User facing function, fetches a single entity from the database
-		 * This function will throw if the entity is not found
-		 */
-		async function findOne<N extends EntityName<ED>>(entityName: N, id: string): Promise<OutputType<ED, EntityByName<ED, N>>> {
-			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'findOne' });
-
-			const rows = await nativeQuery({ sql: `select * from "${camelCaseToSnakeCase(entityName as string)}" where "id" = $1`, params: [ id ] });
-			if (rows == null || rows.length == 0) throw new OrmError('ORM-1200', { entity: entityName as string, operation: 'findOne' });
-			if (rows.length > 1) throw new OrmError('ORM-1201', { entity: entityName as string, operation: 'findOne' });
-
-			// Update the loaded entities cache
-			updateCacheWithNewEntities(entityName, rows);
-
-			return prepEntity(entityName, rows[0]) as any;
-		}
-
-		/**
-		 * Fetches a single entity from the database, but returns null if the entity is not found
-		 */
-		async function findOneOrNull<N extends EntityName<ED>>(entityName: N, id: string): Promise<OutputType<ED, EntityByName<ED, N>> | null> {
-			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'findOneOrNull' });
-
-			const rows = await nativeQuery({ sql: `select * from "${camelCaseToSnakeCase(entityName as string)}" where "id" = $1`, params: [ id ] });
-			if (rows == null || rows.length == 0) return null;
-			if (rows.length > 1) throw new OrmError('ORM-1201', { entity: entityName as string, operation: 'findOneOrNull' });
-
-			// Update the loaded entities cache
-			updateCacheWithNewEntities(entityName, rows);
-
-			return prepEntity(entityName, rows[0]) as OutputType<ED, EntityByName<ED, N>>;
-		}
-
-		/**
-		 * Fetches a list of entities from the database by their IDs
-		 */
-		async function findByIds<N extends EntityName<ED>>(entityName: N, ids: string[]) {
-			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'findByIds' });
-			if (ids.length == 0) return []; // shortcircuit if no IDs are provided
-
-			const rows = await nativeQuery({ sql: `select * from "${camelCaseToSnakeCase(entityName as string)}" where "id" = any($1)`, params: [ ids ] });
-			if (rows.length != ids.length) throw new OrmError('ORM-1202', { entity: entityName as string, operation: 'findByIds' });
-
-			// Update the loaded entities cache
-			updateCacheWithNewEntities(entityName, rows);
-
-			return rows.map(r => prepEntity(entityName, r)) as OutputType<ED, EntityByName<ED, N>>[];
-		}
-
-		/**
-		 * Fetches multiple entities from the database
-		 */
-		async function findMany<N extends EntityName<ED>>(entityName: N, options?: FindManyOptions<ED, EntityByName<ED, N>>): Promise<OutputType<ED, EntityByName<ED, N>>[]> {
-			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'findMany' });
-
-			const empty: SqlStatement = { sql: '', params: [] };
-			const sqlStatement = mergeSql(
-				{ sql: `select * from "${camelCaseToSnakeCase(entityName as string)}"`, params: [] },
-				options?.where != null ? mergeSql({ sql: 'where', params: [] }, whereClauseToSql(options.where)) : empty,
-				options?.orderBy != null ? mergeSql({ sql: 'order by', params: [] }, orderByToSql(options.orderBy)) : empty,
-				options != null && 'offset' in options && options.offset != null ? { sql: 'offset $1', params: [ options.offset ] } : empty,
-				options != null && 'limit' in options && options.limit != null ? { sql: 'limit $1', params: [ options.limit ] } : empty,
-			);
-			const rows = await nativeQuery(sqlStatement);
-
-			// Update loaded entities cache
-			updateCacheWithNewEntities(entityName, rows);
-
-			// Output the fetched entities as full entity objects
-			return rows.map(r => prepEntity(entityName, r)) as OutputType<ED, EntityByName<ED, N>>[];
-		}
-
-		/**
-		 * Counts the amount of entities filtered by the where clause
-		 * Has no orderby, offset, or limit, because none of those affect the count() of the full query
-		 */
-		async function count<N extends EntityName<ED>>(entityName: N, options?: { where?: WhereClause<ED, EntityByName<ED, N>> }): Promise<number> {
-			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'count' });
-
-			const empty: SqlStatement = { sql: '', params: [] };
-			const sqlStatement = mergeSql(
-				{ sql: `select count("id") as "amount" from "${camelCaseToSnakeCase(entityName as string)}"`, params: [] },
-				options?.where != null ? mergeSql({ sql: 'where', params: [] }, whereClauseToSql(options.where)) : empty,
-			);
-			const rows = await nativeQuery(sqlStatement);
-			return rows[0]['amount'];
-		}
-
-		/**
-		 * Finds both a limited amount of entities and the total amount of entities that match the where clause
-		 * This can be useful in paginated contexts=
-		 */
-		async function findManyAndCount<N extends EntityName<ED>>(entityName: N, options?: FindManyOptions<ED, EntityByName<ED, N>>): Promise<{ results: OutputType<ED, EntityByName<ED, N>>[], total: number }> {
-			const results = await findMany(entityName, options);
-			const total = await count(entityName, options == null ? undefined : { where: options?.where });
-			return { results, total };
-		}
-
+		
 		/**
 		 * Fetches a relation
 		 * This will actually look at all entities in the local cache and do a select for all of them, meaning that after the first call to this
@@ -571,6 +473,104 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 				inverseRelationCache.invalidateForEntity(entityName);
 			}
 		};
+
+		/**
+		 * User facing function, fetches a single entity from the database
+		 * This function will throw if the entity is not found
+		 */
+		async function findOne<N extends EntityName<ED>>(entityName: N, id: string): Promise<OutputType<ED, EntityByName<ED, N>>> {
+			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'findOne' });
+
+			const rows = await nativeQuery({ sql: `select * from "${camelCaseToSnakeCase(entityName as string)}" where "id" = $1`, params: [ id ] });
+			if (rows == null || rows.length == 0) throw new OrmError('ORM-1200', { entity: entityName as string, operation: 'findOne' });
+			if (rows.length > 1) throw new OrmError('ORM-1201', { entity: entityName as string, operation: 'findOne' });
+
+			// Update the loaded entities cache
+			updateCacheWithNewEntities(entityName, rows);
+
+			return createOutputTypeFromRawSqlType(entityName, rows[0]) as any;
+		}
+
+		/**
+		 * Fetches a single entity from the database, but returns null if the entity is not found
+		 */
+		async function findOneOrNull<N extends EntityName<ED>>(entityName: N, id: string): Promise<OutputType<ED, EntityByName<ED, N>> | null> {
+			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'findOneOrNull' });
+
+			const rows = await nativeQuery({ sql: `select * from "${camelCaseToSnakeCase(entityName as string)}" where "id" = $1`, params: [ id ] });
+			if (rows == null || rows.length == 0) return null;
+			if (rows.length > 1) throw new OrmError('ORM-1201', { entity: entityName as string, operation: 'findOneOrNull' });
+
+			// Update the loaded entities cache
+			updateCacheWithNewEntities(entityName, rows);
+
+			return createOutputTypeFromRawSqlType(entityName, rows[0]) as OutputType<ED, EntityByName<ED, N>>;
+		}
+
+		/**
+		 * Fetches a list of entities from the database by their IDs
+		 */
+		async function findByIds<N extends EntityName<ED>>(entityName: N, ids: string[]) {
+			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'findByIds' });
+			if (ids.length == 0) return []; // shortcircuit if no IDs are provided
+
+			const rows = await nativeQuery({ sql: `select * from "${camelCaseToSnakeCase(entityName as string)}" where "id" = any($1)`, params: [ ids ] });
+			if (rows.length != ids.length) throw new OrmError('ORM-1202', { entity: entityName as string, operation: 'findByIds' });
+
+			// Update the loaded entities cache
+			updateCacheWithNewEntities(entityName, rows);
+
+			return rows.map(r => createOutputTypeFromRawSqlType(entityName, r)) as OutputType<ED, EntityByName<ED, N>>[];
+		}
+
+		/**
+		 * Fetches multiple entities from the database
+		 */
+		async function findMany<N extends EntityName<ED>>(entityName: N, options?: FindManyOptions<ED, EntityByName<ED, N>>): Promise<OutputType<ED, EntityByName<ED, N>>[]> {
+			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'findMany' });
+
+			const empty: SqlStatement = { sql: '', params: [] };
+			const sqlStatement = mergeSql(
+				{ sql: `select * from "${camelCaseToSnakeCase(entityName as string)}"`, params: [] },
+				options?.where != null ? mergeSql({ sql: 'where', params: [] }, whereClauseToSql(options.where)) : empty,
+				options?.orderBy != null ? mergeSql({ sql: 'order by', params: [] }, orderByToSql(options.orderBy)) : empty,
+				options != null && 'offset' in options && options.offset != null ? { sql: 'offset $1', params: [ options.offset ] } : empty,
+				options != null && 'limit' in options && options.limit != null ? { sql: 'limit $1', params: [ options.limit ] } : empty,
+			);
+			const rows = await nativeQuery(sqlStatement);
+
+			// Update loaded entities cache
+			updateCacheWithNewEntities(entityName, rows);
+
+			// Output the fetched entities as full entity objects
+			return rows.map(r => createOutputTypeFromRawSqlType(entityName, r)) as OutputType<ED, EntityByName<ED, N>>[];
+		}
+
+		/**
+		 * Counts the amount of entities filtered by the where clause
+		 * Has no orderby, offset, or limit, because none of those affect the count() of the full query
+		 */
+		async function count<N extends EntityName<ED>>(entityName: N, options?: { where?: WhereClause<ED, EntityByName<ED, N>> }): Promise<number> {
+			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'count' });
+
+			const empty: SqlStatement = { sql: '', params: [] };
+			const sqlStatement = mergeSql(
+				{ sql: `select count("id") as "amount" from "${camelCaseToSnakeCase(entityName as string)}"`, params: [] },
+				options?.where != null ? mergeSql({ sql: 'where', params: [] }, whereClauseToSql(options.where)) : empty,
+			);
+			const rows = await nativeQuery(sqlStatement);
+			return rows[0]['amount'];
+		}
+
+		/**
+		 * Finds both a limited amount of entities and the total amount of entities that match the where clause
+		 * This can be useful in paginated contexts=
+		 */
+		async function findManyAndCount<N extends EntityName<ED>>(entityName: N, options?: FindManyOptions<ED, EntityByName<ED, N>>): Promise<{ results: OutputType<ED, EntityByName<ED, N>>[], total: number }> {
+			const results = await findMany(entityName, options);
+			const total = await count(entityName, options == null ? undefined : { where: options?.where });
+			return { results, total };
+		}
 
 		/**
 		 * Executes a native query against the database and gives back the result as an array of objects
@@ -831,7 +831,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 				});
 			}
 
-			return rows.map(row => prepEntity(entityName, row)) as OutputType<ED, EntityByName<ED, N>>[];
+			return rows.map(row => createOutputTypeFromRawSqlType(entityName, row)) as OutputType<ED, EntityByName<ED, N>>[];
 		};
 
 		function prepValueForPgFormat(input: any): any {
