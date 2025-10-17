@@ -1,0 +1,1 @@
+export type IsNullable<T extends boolean> = T extends true ? null : never;

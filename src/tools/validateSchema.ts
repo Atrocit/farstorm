@@ -1,8 +1,8 @@
-import { sql, SqlStatement } from './helpers/sql.js';
-import { SchemaValidationError } from './errors/SchemaValidationError.js';
-import { camelCaseToSnakeCase, suffixId } from './util/strings.js';
-import { SchemaValidationResult } from './main.js';
-import { BaseEntity } from './entities/BaseEntity.js';
+import { sql, SqlStatement } from '../helpers/sql.js';
+import { SchemaValidationError } from '../errors/SchemaValidationError.js';
+import { camelCaseToSnakeCase, suffixId } from '../util/strings.js';
+import { SchemaValidationResult } from '../main.js';
+import { BaseEntity } from '../entities/BaseEntity.js';
 
 /**
  * Running this function will check the entity definitions against the database schema

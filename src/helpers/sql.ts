@@ -13,3 +13,17 @@ export function sql(strings: TemplateStringsArray, ...keys: any[]) {
 	}
 	return { sql: sqlOutput, params: keys };
 }
+
+/**
+ * Merges multiple SqlStatement objects into a single one
+ */
+export function mergeSql(...sqlStatements: SqlStatement[]): SqlStatement {
+	let sqlOutput = '';
+	const params = [];
+	for (const sqls of sqlStatements) {
+		sqlOutput += sqls.sql + ' ';
+		params.push(...sqls.params);
+	}
+	sqlOutput = sqlOutput.split(/\$\d+/).map((part, i) => i > 0 ? ('$' + i + part) : part).join('');
+	return { sql: sqlOutput.trim(), params };
+}

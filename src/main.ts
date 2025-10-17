@@ -1,113 +1,27 @@
-import { ConnectionDetails as PgConnectionDetails, PostgresqlDriver } from './drivers/postgresql.js';
-import type { ConnectionDetails as PgLiteConnectionDetails } from './drivers/pglite.js';
-import { ConnectionDetails as DummyConnectionDetails, DummyDriver } from './drivers/dummy.js';
-import { BaseEntity, defineCustomField, defineEntity, defineField, defineIdField } from './entities/BaseEntity.js';
-import { camelCaseToSnakeCase, CamelToSnakeCase, IdSuffixed, snakeCaseToCamelCase, suffixId } from './util/strings.js';
-import { sql, SqlStatement } from './helpers/sql.js';
 import format from 'pg-format';
+import { ChangeTracker } from './transaction/ChangeTracker.js';
 import { Driver } from './drivers/Driver.js';
-import { ChangeTracker } from './ChangeTracker.js';
-import { OrmError } from './errors/OrmError.js';
+import { ConnectionDetails as DummyConnectionDetails, DummyDriver } from './drivers/dummy.js';
+import type { ConnectionDetails as PgLiteConnectionDetails } from './drivers/pglite.js';
+import { ConnectionDetails as PgConnectionDetails, PostgresqlDriver } from './drivers/postgresql.js';
 import { checkEntityDefinitions } from './entities/entityDefinitionsChecks.js';
-import { validateSchema as validateSchemaActual } from './validateSchema.js';
+import { EntityCache } from './transaction/EntityCache.js';
+import { OrmError } from './errors/OrmError.js';
 import { SchemaValidationError } from './errors/SchemaValidationError.js';
-import { EntityCache } from './EntityCache.js';
 import EventEmitter from './helpers/MyEventEmitter.js';
-import { RelationCache } from './RelationCache.js';
-
-// Magic getter constant
-// This is used on custom property getters to mark them as ORM relation getters
-const ormRelationGetter = Symbol('ormRelationGetter');
-
-export function _isOrmRelationGetter(object: any, property: string) {
-	const getter = Object.getOwnPropertyDescriptor(object, property)?.get;
-	if (getter == null) return false;
-	return ormRelationGetter in getter && getter[ormRelationGetter] != null && getter[ormRelationGetter] == true;
-}
+import { mergeSql, sql, SqlStatement } from './helpers/sql.js';
+import { RelationCache } from './transaction/RelationCache.js';
+import { BaseEntityDefinitions } from './types/BaseEntityDefinitions.js';
+import { EntityByName, EntityDefinition, EntityName } from './types/EntityTypes.js';
+import { OutputType } from './types/OutputType.js';
+import { camelCaseToSnakeCase, snakeCaseToCamelCase, suffixId } from './util/strings.js';
+import { validateSchema as validateSchemaActual } from './tools/validateSchema.js';
+import { InputType } from './types/InputType.js';
+import { RawSqlType } from './types/RawSqlType.js';
+import { isOrmRelationGetter, ormRelationGetter } from './relations/ormRelationGetter.js';
 
 export type QueryStatsQuery = { query: string, params: any[], durationInMs: number };
 export type QueryStats = { queries: QueryStatsQuery[] };
-
-type IsNullable<T extends boolean> = T extends true ? null : never;
-
-type BaseEntityDefinitions = Record<string, BaseEntity>;
-
-// Entity helper types
-type EntityName<ED extends BaseEntityDefinitions> = keyof ED;
-type EntityDefinition<ED extends BaseEntityDefinitions> = ED[EntityName<ED>];
-type EntityByName<ED extends BaseEntityDefinitions, K extends EntityName<ED>> = ED[K];
-
-// Helper types to get field properties for a specific entity
-type Fields<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> = E['fields'];
-type FieldNames<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> = keyof Fields<ED, E>;
-type Field<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>, N extends FieldNames<ED, E>> = Fields<ED, E>[N];
-type FieldType<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>, N extends FieldNames<ED, E>> = ReturnType<Field<ED, E, N>['toType']>;
-type FieldNullNever<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>, N extends FieldNames<ED, E>> = IsNullable<Field<ED, E, N>['nullableOnOutput']>;
-
-// // Helper types for relations for a specific entity
-type RelationNames<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> = keyof E['oneToOneOwned'] | keyof E['oneToOneInverse'] | keyof E['manyToOne'] | keyof E['oneToMany'];
-
-// Prep the output type for a specific entity
-// Defines a type for every field on a given entity, including correctly nullability setting
-// Defines the types for all relations, which will something like Promise<TargetEntity> or Promise<TargetEntity[]>, depending on the relation type, with correct nullability
-export type OutputType<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> = EvalGeneric<{
-	-readonly [N in keyof E['fields']]: FieldType<ED, E, N> | FieldNullNever<ED, E, N>
-} & {
-	-readonly [N in keyof E['oneToOneOwned']]: Promise<OutputType<ED, EntityByName<ED, E['oneToOneOwned'][N]['entity']>>> | IsNullable<E['oneToOneOwned'][N]['nullable']>
-} & {
-	-readonly [N in keyof E['oneToOneInverse']]: Promise<OutputType<ED, EntityByName<ED, E['oneToOneInverse'][N]['entity']>> | IsNullable<E['oneToOneInverse'][N]['nullable']>>
-} & {
-	-readonly [N in keyof E['manyToOne']]: Promise<OutputType<ED, EntityByName<ED, E['manyToOne'][N]['entity']>>> | IsNullable<E['manyToOne'][N]['nullable']>
-} & {
-	[N in keyof E['oneToMany']]: Promise<OutputType<ED, EntityByName<ED, E['oneToMany'][N]['entity']>>[]>
-}>;
-
-// This type is an identity type: the output is identical to the input, except it forces the TypeScript compiler to evaluate the type
-// Collapsing the type is useful both for performance reasons (it makes TypeScript horribly slow otherwise in some scenarios)
-//  and it has the added benefit of making the types much more readable in error messages and IDE inlay hints
-// type EvalGeneric<X> = X extends infer C ? { [K in keyof C]: C[K] } : never;
-type EvalGeneric<X> = unknown extends X
-	? X
-	: (X extends infer C ? { [K in keyof C]: C[K] } : never);
-
-type OutputTypeRef<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> = Promise<OutputType<ED, E>> | OutputType<ED, E>;
-
-// Define input type for save functions
-type InputTypeFields<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> =
-	{ -readonly [N in keyof E['fields'] as E['fields'][N]['nullableOnInput'] extends true ? never : N]: FieldType<ED, E, N> } // mandatory properties
-	& { -readonly [N in keyof E['fields'] as E['fields'][N]['nullableOnInput'] extends true ? N : never]?: FieldType<ED, E, N> | null | undefined }; // optionals
-
-type InputTypeOneToOneOwned<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> =
-	{ -readonly [N in keyof E['oneToOneOwned'] as E['oneToOneOwned'][N]['nullable'] extends true ? never : N]: OutputTypeRef<ED, EntityByName<ED, E['oneToOneOwned'][N]['entity']>> } // mandatory properties
-	& { -readonly [N in keyof E['oneToOneOwned'] as E['oneToOneOwned'][N]['nullable'] extends true ? N : never]?: OutputTypeRef<ED, EntityByName<ED, E['oneToOneOwned'][N]['entity']>> | null | undefined }; // optionals
-
-type InputTypeManyToOne<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> =
-	{ -readonly [N in keyof E['manyToOne'] as E['manyToOne'][N]['nullable'] extends true ? never : N]: OutputTypeRef<ED, EntityByName<ED, E['manyToOne'][N]['entity']>> } // mandatory properties
-	& { -readonly [N in keyof E['manyToOne'] as E['manyToOne'][N]['nullable'] extends true ? N : never]?: OutputTypeRef<ED, EntityByName<ED, E['manyToOne'][N]['entity']>> | null | undefined }; // optionals
-
-type InputTypeWithId<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> =
-	InputTypeFields<ED, E> & InputTypeOneToOneOwned<ED, E> & InputTypeManyToOne<ED, E> & {
-		-readonly [N in keyof E['oneToOneInverse']]?: any /* Allow feeding something, but we don't care what exactly since we won't save it. We could narrow this to identical to OutputType<> */
-	} & {
-		-readonly [N in keyof E['oneToMany']]?: any /* Allow feeding something, but we don't care what exactly since we won't save it. We could narrow this to identical to OutputType<> */
-	};
-
-type WithOptionalId<X extends {}> = Omit<X, 'id'> & { id?: string | null };
-
-export type InputType<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> = EvalGeneric<WithOptionalId<InputTypeWithId<ED, E>>>;
-
-// Construct the RawSqlType, which is a type definition that encompasses what is returned from a SQL-query
-// Currently any types for OneToMany relations that aren't defined as a ManyToOne on the other side are missing
-//  (e.g if B defines a OneToMany to A, then A will not have a field for this relation, even though in reality there will be a b_id column in the table for A)
-// The clunky N extends string stuff is to ensure TypeScript does not get confused. Even though the keys of FieldNames<> and such are always strings,
-//  for some reason TS tries to use the default key type (symbol | number | string) instead of the more narrow string we know it to be.
-export type RawSqlType<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> = {
-	-readonly [N in keyof E['fields'] as CamelToSnakeCase<Extract<N, string>>]: ReturnType<E['fields'][N]['toType']> | IsNullable<E['fields'][N]['nullableOnOutput']>
-} & {
-	-readonly [N in keyof E['oneToOneOwned'] as IdSuffixed<CamelToSnakeCase<Extract<N, string>>>]: number | IsNullable<E['oneToOneOwned'][N]['nullable']>
-} & {
-	-readonly [N in keyof E['manyToOne'] as IdSuffixed<CamelToSnakeCase<Extract<N, string>>>]: number | IsNullable<E['manyToOne'][N]['nullable']>
-};
 
 // Represents different parts of findMany queries
 // We might add specifics here later for specific entities, hence the <E> type param
@@ -128,26 +42,11 @@ function orderByToSql<ED extends BaseEntityDefinitions, E extends EntityDefiniti
 	return orderByClause; // this function will become more complicated later on
 }
 
-/**
- * Merges multiple SqlStatement objects into a single one
- */
-function mergeSql(...sqlStatements: SqlStatement[]): SqlStatement {
-	let sqlOutput = '';
-	const params = [];
-	for (const sqls of sqlStatements) {
-		sqlOutput += sqls.sql + ' ';
-		params.push(...sqls.params);
-	}
-	sqlOutput = sqlOutput.split(/\$\d+/).map((part, i) => i > 0 ? ('$' + i + part) : part).join('');
-	return { sql: sqlOutput.trim(), params };
-}
-
 type TransactionControls = {
 	query: (query: string, params: any[]) => Promise<{ rows: any[] }>,
 	commit: () => Promise<void>,
 	rollback: () => Promise<void>,
 };
-
 
 type DbFunctions<ED extends BaseEntityDefinitions> = {
 	findOne: <N extends EntityName<ED>>(entityName: N, id: string) => Promise<OutputType<ED, EntityByName<ED, N>>>,
@@ -249,32 +148,32 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 	 * IMPORTANT: inserts/updates/deletions through native queries will not be tracked by the audit log system
 	 */
 	async enableAuditLogging() {
-		const tx = await this.driver.startTransaction();
+		// const tx = await this.driver.startTransaction();
 
-		try {
-			// Run schema validation with a fictive entity to validate the schema is actually what we expect
-			// const result = await validateSchemaActual({
-			// 	AuditLog: defineEntity({
-			// 		fields: {
-			// 			id: defineIdField(),
-			// 			timestamp: defineField('Date', false),
-			// 			transactionId: defineField('number', false),
-			// 			table: defineField('string', false),
-			// 			entityId: defineField('number', false),
-			// 			type: defineCustomField(false, x => x as ('INSERT' | 'UPDATE' | 'DELETE'), x => x),
-			// 			diff: defineCustomField(false, x => x, x => x),
-			// 			metadata: defineCustomField(false, x => x, x => x),
-			// 		},
-			// 	}),
-			// }, statement => tx.query(statement.sql, statement.params).then(r => r.rows));
-			// if (!result.valid) {
-			// 	this.auditLoggingEnabled = false;
-			// 	throw Error('Cannot enable audit logging due to schema mismatch');
-			// }
-			this.auditLoggingEnabled = true;
-		} finally {
-			tx.commit();
-		}
+		// try {
+		// 	// Run schema validation with a fictive entity to validate the schema is actually what we expect
+		// 	const result = await validateSchemaActual({
+		// 		AuditLog: defineEntity({
+		// 			fields: {
+		// 				id: defineIdField(),
+		// 				timestamp: defineField('Date', false),
+		// 				transactionId: defineField('number', false),
+		// 				table: defineField('string', false),
+		// 				entityId: defineField('number', false),
+		// 				type: defineCustomField(false, x => x as ('INSERT' | 'UPDATE' | 'DELETE'), x => x),
+		// 				diff: defineCustomField(false, x => x, x => x),
+		// 				metadata: defineCustomField(false, x => x, x => x),
+		// 			},
+		// 		}),
+		// 	}, statement => tx.query(statement.sql, statement.params).then(r => r.rows));
+		// 	if (!result.valid) {
+		// 		this.auditLoggingEnabled = false;
+		// 		throw Error('Cannot enable audit logging due to schema mismatch');
+		// 	}
+		this.auditLoggingEnabled = true;
+		// } finally {
+		// 	tx.commit();
+		// }
 	}
 
 	/**
@@ -733,7 +632,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 
 					// If the relation is a getter for fetching the relation, we should be careful and try to see if the dev has actually fetched and modified the relation before saving
 					// Right now we assume they haven't, but we should probably check the local cache, see if this relation was ever fetched, and if so try and see if the values were modified
-					if (_isOrmRelationGetter(e, relation)) continue;
+					if (isOrmRelationGetter(e, relation)) continue;
 
 					// If the relation is nullable and the value is null, we should set the field to null
 					const resolvedRelation: any = await e[relation];
@@ -748,7 +647,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 
 					// If the relation is a getter for fetching the relation, we should be careful and try to see if the dev has actually fetched and modified the relation before saving
 					// Right now we assume they haven't, but we should probably check the local cache, see if this relation was ever fetched, and if so try and see if the values were modified
-					if (_isOrmRelationGetter(e, relation)) continue;
+					if (isOrmRelationGetter(e, relation)) continue;
 
 					// If the relation is nullable and the value is null, we should set the field to null
 					const resolvedRelation: any = await e[relation];
@@ -1078,7 +977,10 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 	}
 }
 
+export { ChangeTracker } from './transaction/ChangeTracker.js';
+export { defineAutogeneratedField, defineCustomField, defineEntity, defineField, defineIdField } from './entities/BaseEntity.js';
 export { sql } from './helpers/sql.js';
 export { unwrap, unwrapAll } from './helpers/unwrap.js';
-export { defineEntity, defineIdField, defineField, defineCustomField, defineAutogeneratedField } from './entities/BaseEntity.js';
-export { ChangeTracker } from './ChangeTracker.js';
+export { InputType } from './types/InputType.js';
+export { OutputType } from './types/OutputType.js';
+export { RawSqlType } from './types/RawSqlType.js';
