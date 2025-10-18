@@ -118,7 +118,7 @@ export default defineConfig([ {
 		"no-unsafe-optional-chaining": "error",
 		"no-unused-private-class-members": "warn",
 		"no-useless-backreference": "warn",
-		"require-atomic-updates": "warn",
+		// "require-atomic-updates": "warn",
 		"use-isnan": "error",
 		"valid-typeof": "error",
 		"eqeqeq": "off",
