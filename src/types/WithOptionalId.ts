@@ -1,0 +1,1 @@
+export type WithOptionalId<X extends {}> = Omit<X, 'id'> & { id?: string | null };
