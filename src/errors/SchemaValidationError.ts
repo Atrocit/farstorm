@@ -40,6 +40,11 @@ const ormSvCodeMap = {
 		message: 'Column type for one-to-one relation (owned side) must be bigint',
 		explanation: 'The column type for a one-to-one relation (owned side) must be defined as a bigint. Resolve by changing the column type to bigint.',
 	},
+	// 3103 Missing index on owned side does not make sense
+	'ORM-SV-3104': {
+		message: 'No unique constraint or unique index was defined for one-to-one relation',
+		explanation: 'Without the database forcing uniqueness, the one-to-one property might be violated and turn into a many-to-one. Putting a unique constraint or unique index on the column is an effective way to prevent this problem.',
+	},
 
 	// One-to-one inverse relations
 	'ORM-SV-3110': {
