@@ -75,5 +75,40 @@ describe('Postgres: findByIds', () => {
 			const todoItems = await findByIds('TodoItem', []);
 			expect(todoItems).toEqual([]);
 		});
+		await cleanup();
+	});
+
+	it('should preserve input order when finding by IDs in ascending order', async () => {
+		const { db, cleanup } = await setup();
+		await db.inTransaction(async ({ findByIds }) => {
+			const todoItems = await findByIds('TodoItem', [ '1', '2' ]);
+			expect(todoItems).toHaveLength(2);
+			expect(todoItems[0].id).toBe('1');
+			expect(todoItems[1].id).toBe('2');
+		});
+		await cleanup();
+	});
+
+	it('should preserve input order when finding by IDs in descending order', async () => {
+		const { db, cleanup } = await setup();
+		await db.inTransaction(async ({ findByIds }) => {
+			const todoItems = await findByIds('TodoItem', [ '2', '1' ]);
+			expect(todoItems).toHaveLength(2);
+			expect(todoItems[0].id).toBe('2');
+			expect(todoItems[1].id).toBe('1');
+		});
+		await cleanup();
+	});
+
+	it('should preserve input order with duplicate IDs', async () => {
+		const { db, cleanup } = await setup();
+		await db.inTransaction(async ({ findByIds }) => {
+			const todoItems = await findByIds('TodoItem', [ '1', '2', '1' ]);
+			expect(todoItems).toHaveLength(3);
+			expect(todoItems[0].id).toBe('1');
+			expect(todoItems[1].id).toBe('2');
+			expect(todoItems[2].id).toBe('1');
+		});
+		await cleanup();
 	});
 });

@@ -515,13 +515,24 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'findByIds' });
 			if (ids.length == 0) return []; // shortcircuit if no IDs are provided
 
+			const idsSet = new Set(ids);
+			
 			const rows = await nativeQuery({ sql: `select * from "${camelCaseToSnakeCase(entityName as string)}" where "id" = any($1)`, params: [ ids ] });
-			if (rows.length != ids.length) throw new OrmError('ORM-1202', { entity: entityName as string, operation: 'findByIds' });
+			if (rows.length != idsSet.size) throw new OrmError('ORM-1202', { entity: entityName as string, operation: 'findByIds' });
 
 			// Update the loaded entities cache
 			updateCacheWithNewEntities(entityName, rows);
+			
+			// Populate hash map for quick lookups
+			const rowsById: Record<string, any> = {};
+			for (const row of rows) {
+				rowsById[row.id] = row;
+			}
+			
+			// Get rows in order of ids passed in
+			const orderedRows = ids.map(id => rowsById[id]);
 
-			return rows.map(r => createOutputTypeFromRawSqlType(entityName, r)) as OutputType<ED, EntityByName<ED, N>>[];
+			return orderedRows.map(r => createOutputTypeFromRawSqlType(entityName, r)) as OutputType<ED, EntityByName<ED, N>>[];
 		}
 
 		/**
