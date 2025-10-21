@@ -1,8 +1,8 @@
 import { Driver, TransactionControls } from './Driver.js';
 import EventEmitter from '../helpers/MyEventEmitter.js';
 import { PGlite, types } from '@electric-sql/pglite';
-// @ts-ignore
 import { fuzzystrmatch } from '@electric-sql/pglite/contrib/fuzzystrmatch';
+import { pg_trgm } from '@electric-sql/pglite/contrib/pg_trgm';
 
 export type ConnectionDetails = {
 	type: 'pglite',
@@ -20,6 +20,7 @@ export class PgLiteDriver extends EventEmitter implements Driver {
 			loadDataDir: connectionDetails.file,
 			extensions: {
 				fuzzystrmatch,
+				pg_trgm,
 			},
 			parsers: {
 				[types.NUMERIC]: (value) => parseFloat(value),
