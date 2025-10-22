@@ -1,7 +1,7 @@
 {
   "name": "farstorm",
   "description": "Farstorm - First Access Retrieval Structurally Typed ORM for PostgreSQL",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "main": "./build/src/main.js",
   "type": "module",
   "author": "Rick Lubbers <rick.lubbers@atrocit.com>",
