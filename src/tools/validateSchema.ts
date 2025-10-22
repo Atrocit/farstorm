@@ -70,6 +70,16 @@ export async function validateSchema(entityDefinitions: Record<string, BaseEntit
 			if (table[columnName]['udt_name'] != 'int8') {
 				errors.push(new SchemaValidationError('ORM-SV-3102', { entity: entityName, field: fieldName, table: tableName, column: columnName }));
 			}
+			
+			// Make sure there is a unique constraint / index on the column in question
+			const hasUniqueIndex = indexes.some(idx => {
+				return idx.tablename == tableName &&
+					idx.indexdef.split('USING')[1].includes('(' + columnName + ')') &&
+					idx.indexdef.includes('CREATE UNIQUE INDEX');
+			});
+			if (!hasUniqueIndex) {
+				warnings.push(new SchemaValidationError('ORM-SV-3104', { entity: entityName, field: fieldName, table: tableName, column: columnName }));
+			}
 		}
 
 		// One-to-one inverse relations

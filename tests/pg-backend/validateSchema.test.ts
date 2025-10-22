@@ -201,5 +201,39 @@ describe('Postgres: validateSchema', () => {
 		expect(result.valid).toBe(true);
 		expect(result.warnings.map(w => w.code)).not.toContain('ORM-SV-3113');
 	});
+	
+	it('give a warning when one-to-one does not have unique constraint or unique index', async () => {
+		const result = await runValidationAgainstSchema(`
+			create table "user" (id bigserial primary key, full_name character varying not null, username character varying not null);
+			create table "todo_item" (id bigserial primary key, created_at timestamptz not null, description character varying not null, author_id bigint not null references "user");
+			alter table "user" add column favorite_todo_id bigint references "todo_item";
+			create index on "user" (favorite_todo_id);
+		`, `drop table if exists "user", "todo_item" cascade;`, entitySchema);
+		expect(result.valid).toBe(true);
+		expect(result.warnings.map(w => w.code)).toContain('ORM-SV-3104');
+	});
+	
+	it('not give a warning when one-to-one does have a unique constraint', async () => {
+		const result = await runValidationAgainstSchema(`
+			create table "user" (id bigserial primary key, full_name character varying not null, username character varying not null);
+			create table "todo_item" (id bigserial primary key, created_at timestamptz not null, description character varying not null, author_id bigint not null references "user");
+			alter table "user" add column favorite_todo_id bigint references "todo_item";
+			create index on "user" (favorite_todo_id);
+			alter table "user" add constraint uniq_user_favorite_todo unique (favorite_todo_id);
+		`, `drop table if exists "user", "todo_item" cascade;`, entitySchema);
+		expect(result.valid).toBe(true);
+		expect(result.warnings.map(w => w.code)).not.toContain('ORM-SV-3104');
+	});
+	
+	it('not give a warning when one-to-one does have a unique index', async () => {
+		const result = await runValidationAgainstSchema(`
+			create table "user" (id bigserial primary key, full_name character varying not null, username character varying not null);
+			create table "todo_item" (id bigserial primary key, created_at timestamptz not null, description character varying not null, author_id bigint not null references "user");
+			alter table "user" add column favorite_todo_id bigint references "todo_item";
+			create unique index on "user" (favorite_todo_id);
+		`, `drop table if exists "user", "todo_item" cascade;`, entitySchema);
+		expect(result.valid).toBe(true);
+		expect(result.warnings.map(w => w.code)).not.toContain('ORM-SV-3104');
+	});
 
 });
