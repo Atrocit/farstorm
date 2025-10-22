@@ -54,5 +54,8 @@
     "@electric-sql/pglite": {
       "optional": true
     }
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }
