@@ -3,6 +3,7 @@ import { SchemaValidationError } from '../errors/SchemaValidationError.js';
 import { camelCaseToSnakeCase, suffixId } from '../util/strings.js';
 import { SchemaValidationResult } from '../main.js';
 import { BaseEntity } from '../entities/BaseEntity.js';
+import { isNullable } from '../entities/Nullable.js';
 
 /**
  * Running this function will check the entity definitions against the database schema
@@ -47,10 +48,10 @@ export async function validateSchema(entityDefinitions: Record<string, BaseEntit
 				continue;
 			}
 			if (columnName != 'id') {
-				if (table[columnName]['is_nullable'] == 'NO' && fieldDefinition.nullableOnInput && table[columnName]['column_default'] == null) {
+				if (table[columnName]['is_nullable'] == 'NO' && isNullable(fieldDefinition.nullableOnInput) && table[columnName]['column_default'] == null) {
 					errors.push(new SchemaValidationError('ORM-SV-3002', { entity: entityName, field: fieldName, table: tableName, column: columnName }));
 				}
-				if (table[columnName]['is_nullable'] == 'YES' && !fieldDefinition.nullableOnOutput) {
+				if (table[columnName]['is_nullable'] == 'YES' && !isNullable(fieldDefinition.nullableOnOutput)) {
 					errors.push(new SchemaValidationError('ORM-SV-3003', { entity: entityName, field: fieldName, table: tableName, column: columnName }));
 				}
 			}
@@ -64,7 +65,7 @@ export async function validateSchema(entityDefinitions: Record<string, BaseEntit
 				errors.push(new SchemaValidationError('ORM-SV-3100', { entity: entityName, field: fieldName, table: tableName, column: columnName }));
 				continue;
 			}
-			if (table[columnName]['is_nullable'] == 'NO' && fieldDefinition.nullable) {
+			if (table[columnName]['is_nullable'] == 'NO' && isNullable(fieldDefinition.nullable)) {
 				errors.push(new SchemaValidationError('ORM-SV-3101', { entity: entityName, field: fieldName, table: tableName, column: columnName }));
 			}
 			if (table[columnName]['udt_name'] != 'int8') {
@@ -112,7 +113,7 @@ export async function validateSchema(entityDefinitions: Record<string, BaseEntit
 				errors.push(new SchemaValidationError('ORM-SV-3120', { entity: entityName, field: fieldName, table: tableName, column: columnName }));
 				continue;
 			}
-			if (table[columnName]['is_nullable'] == 'NO' && fieldDefinition.nullable) {
+			if (table[columnName]['is_nullable'] == 'NO' && isNullable(fieldDefinition.nullable)) {
 				errors.push(new SchemaValidationError('ORM-SV-3121', { entity: entityName, field: fieldName, table: tableName, column: columnName }));
 			}
 			if (table[columnName]['udt_name'] != 'int8') {
