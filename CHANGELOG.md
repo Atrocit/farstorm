@@ -1,5 +1,11 @@
 # farstorm
 
+## 1.1.1
+
+### Patch Changes
+
+- 327b6fe: Fix InputType not correctly recognizing 'NULLABLE' as nullable status
+
 ## 1.1.0
 
 ### Minor Changes
