@@ -1,7 +1,9 @@
-export type LegacyNullable = boolean;
-export type Nullable = 'NULLABLE' | 'NOT NULL' | LegacyNullable;
+export type IsNotNull = false | 'NOT NULL';
+export type IsNullable = true | 'NULLABLE';
 
-export function isNullable(nullable: Nullable) {
+export type Nullable = IsNotNull | IsNullable;
+
+export function isNullable(nullable: Nullable): boolean {
 	if (nullable == 'NULLABLE') return true;
 	if (nullable == 'NOT NULL') return false;
 	return !!nullable;
