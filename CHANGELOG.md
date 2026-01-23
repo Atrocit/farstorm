@@ -1,5 +1,11 @@
 # farstorm
 
+## 1.1.2
+
+### Patch Changes
+
+- 8d087f7: Fix validateSchema not correctly dealing with 'NULLABLE' and 'NOT NULL' values
+
 ## 1.1.1
 
 ### Patch Changes
