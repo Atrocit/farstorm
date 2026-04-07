@@ -1,10 +1,14 @@
 import { IsNullable } from "../entities/Nullable.js";
 import { BaseEntityDefinitions } from "./BaseEntityDefinitions.js";
-import { EntityByName, EntityDefinition } from "./EntityTypes.js";
+import { EntityDefinition } from "./EntityTypes.js";
 import { EvalGeneric } from "./EvalGeneric.js";
 import { FieldType } from "./FieldTypes.js";
-import { OutputTypeRef } from "./OutputType.js";
+import { OutputTypeRefByName } from "./OutputType.js";
 import { WithOptionalId } from "./WithOptionalId.js";
+
+export type InputTypeByName<ED extends BaseEntityDefinitions> = {
+	[N in keyof ED]: InputType<ED, ED[N]>
+};
 
 // Define input type for save functions
 type InputTypeFields<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> =
@@ -12,12 +16,12 @@ type InputTypeFields<ED extends BaseEntityDefinitions, E extends EntityDefinitio
 	& { -readonly [N in keyof E['fields'] as E['fields'][N]['nullableOnInput'] extends IsNullable ? N : never]?: FieldType<ED, E, N> | null | undefined }; // optionals
 
 type InputTypeOneToOneOwned<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> =
-	{ -readonly [N in keyof E['oneToOneOwned'] as E['oneToOneOwned'][N]['nullable'] extends IsNullable ? never : N]: OutputTypeRef<ED, EntityByName<ED, E['oneToOneOwned'][N]['entity']>> } // mandatory properties
-	& { -readonly [N in keyof E['oneToOneOwned'] as E['oneToOneOwned'][N]['nullable'] extends IsNullable ? N : never]?: OutputTypeRef<ED, EntityByName<ED, E['oneToOneOwned'][N]['entity']>> | null | undefined }; // optionals
+	{ -readonly [N in keyof E['oneToOneOwned'] as E['oneToOneOwned'][N]['nullable'] extends IsNullable ? never : N]: OutputTypeRefByName<ED, E['oneToOneOwned'][N]['entity']> } // mandatory properties
+	& { -readonly [N in keyof E['oneToOneOwned'] as E['oneToOneOwned'][N]['nullable'] extends IsNullable ? N : never]?: OutputTypeRefByName<ED, E['oneToOneOwned'][N]['entity']> | null | undefined }; // optionals
 
 type InputTypeManyToOne<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> =
-	{ -readonly [N in keyof E['manyToOne'] as E['manyToOne'][N]['nullable'] extends IsNullable ? never : N]: OutputTypeRef<ED, EntityByName<ED, E['manyToOne'][N]['entity']>> } // mandatory properties
-	& { -readonly [N in keyof E['manyToOne'] as E['manyToOne'][N]['nullable'] extends IsNullable ? N : never]?: OutputTypeRef<ED, EntityByName<ED, E['manyToOne'][N]['entity']>> | null | undefined }; // optionals
+	{ -readonly [N in keyof E['manyToOne'] as E['manyToOne'][N]['nullable'] extends IsNullable ? never : N]: OutputTypeRefByName<ED, E['manyToOne'][N]['entity']> } // mandatory properties
+	& { -readonly [N in keyof E['manyToOne'] as E['manyToOne'][N]['nullable'] extends IsNullable ? N : never]?: OutputTypeRefByName<ED, E['manyToOne'][N]['entity']> | null | undefined }; // optionals
 
 export type InputTypeWithId<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> =
 	InputTypeFields<ED, E> & InputTypeOneToOneOwned<ED, E> & InputTypeManyToOne<ED, E> & {

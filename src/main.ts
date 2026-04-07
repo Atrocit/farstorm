@@ -13,10 +13,10 @@ import { mergeSql, sql, SqlStatement } from './helpers/sql.js';
 import { RelationCache } from './transaction/RelationCache.js';
 import { BaseEntityDefinitions } from './types/BaseEntityDefinitions.js';
 import { EntityByName, EntityDefinition, EntityName } from './types/EntityTypes.js';
-import { OutputType } from './types/OutputType.js';
+import { OutputTypeByName } from './types/OutputType.js';
 import { camelCaseToSnakeCase, snakeCaseToCamelCase, suffixId } from './util/strings.js';
 import { validateSchema as validateSchemaActual } from './tools/validateSchema.js';
-import { InputType } from './types/InputType.js';
+import { InputTypeByName } from './types/InputType.js';
 import { RawSqlType } from './types/RawSqlType.js';
 import { isOrmRelationGetter, ormRelationGetter } from './relations/ormRelationGetter.js';
 import { isNullable } from './entities/Nullable.js';
@@ -50,15 +50,15 @@ type TransactionControls = {
 };
 
 type DbFunctions<ED extends BaseEntityDefinitions> = {
-	findOne: <N extends EntityName<ED>>(entityName: N, id: string) => Promise<OutputType<ED, EntityByName<ED, N>>>,
-	findOneOrNull: <N extends EntityName<ED>>(entityName: N, id: string) => Promise<OutputType<ED, EntityByName<ED, N>> | null>,
-	findByIds: <N extends EntityName<ED>>(entityName: N, ids: string[]) => Promise<OutputType<ED, EntityByName<ED, N>>[]>,
-	findMany: <N extends EntityName<ED>>(entityName: N, options: FindManyOptions<ED, EntityByName<ED, N>>) => Promise<OutputType<ED, EntityByName<ED, N>>[]>,
+	findOne: <N extends EntityName<ED>>(entityName: N, id: string) => Promise<OutputTypeByName<ED>[N]>,
+	findOneOrNull: <N extends EntityName<ED>>(entityName: N, id: string) => Promise<OutputTypeByName<ED>[N] | null>,
+	findByIds: <N extends EntityName<ED>>(entityName: N, ids: string[]) => Promise<OutputTypeByName<ED>[N][]>,
+	findMany: <N extends EntityName<ED>>(entityName: N, options: FindManyOptions<ED, EntityByName<ED, N>>) => Promise<OutputTypeByName<ED>[N][]>,
 	count: <N extends EntityName<ED>>(entityName: N, options?: { where?: WhereClause<ED, EntityByName<ED, N>> }) => Promise<number>,
-	findManyAndCount: <N extends EntityName<ED>>(entityName: N, options: FindManyOptions<ED, EntityByName<ED, N>>) => Promise<{ results: OutputType<ED, EntityByName<ED, N>>[], total: number }>,
+	findManyAndCount: <N extends EntityName<ED>>(entityName: N, options: FindManyOptions<ED, EntityByName<ED, N>>) => Promise<{ results: OutputTypeByName<ED>[N][], total: number }>,
 	nativeQuery: (sqlStatement: SqlStatement) => Promise<any[]>,
-	saveOne: <N extends EntityName<ED>>(entityName: N, entity: InputType<ED, EntityByName<ED, N>>) => Promise<OutputType<ED, EntityByName<ED, N>>>,
-	saveMany: <N extends EntityName<ED>>(entityName: N, entities: InputType<ED, EntityByName<ED, N>>[]) => Promise<OutputType<ED, EntityByName<ED, N>>[]>,
+	saveOne: <N extends EntityName<ED>>(entityName: N, entity: InputTypeByName<ED>[N]) => Promise<OutputTypeByName<ED>[N]>,
+	saveMany: <N extends EntityName<ED>>(entityName: N, entities: InputTypeByName<ED>[N][]) => Promise<OutputTypeByName<ED>[N][]>,
 	deleteByIds: <N extends EntityName<ED>>(entityName: N, ids: string[]) => Promise<void>,
 	deleteMany: <N extends EntityName<ED>>(entityName: N, options: { where: WhereClause<ED, EntityByName<ED, N>> }) => Promise<void>,
 	validateSchema: (schemaName?: string) => Promise<SchemaValidationResult>,
@@ -212,7 +212,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 		 * This takes the raw SQL result and converts it into a proper OutputType for the entity
 		 * This function is responsible for putting in the Promise getters which will actually fetch any relations
 		 */
-		const createOutputTypeFromRawSqlType = <N extends EntityName<ED>>(entityName: N, result: RawSqlType<ED, EntityByName<ED, N>>): OutputType<ED, EntityByName<ED, N>> => {
+		const createOutputTypeFromRawSqlType = <N extends EntityName<ED>>(entityName: N, result: RawSqlType<ED, EntityByName<ED, N>>): OutputTypeByName<ED>[N] => {
 			const entityDefinition = this.entityDefinitions[entityName];
 			const output: Record<string, any> = {}; // Realistically the type is way stricter, more like Record<FieldNames<EntityByName<N>> | RelationNames<EntityByName<N>>, any>
 
@@ -332,7 +332,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 				Object.defineProperty(output, relationName, { enumerable: true, configurable: true, get: getOneToMany });
 			}
 
-			return output as OutputType<ED, EntityByName<ED, N>>;
+			return output as OutputTypeByName<ED>[N];
 		};
 		
 		/**
@@ -479,7 +479,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 		 * User facing function, fetches a single entity from the database
 		 * This function will throw if the entity is not found
 		 */
-		async function findOne<N extends EntityName<ED>>(entityName: N, id: string): Promise<OutputType<ED, EntityByName<ED, N>>> {
+		async function findOne<N extends EntityName<ED>>(entityName: N, id: string): Promise<OutputTypeByName<ED>[N]> {
 			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'findOne' });
 
 			const rows = await nativeQuery({ sql: `select * from "${camelCaseToSnakeCase(entityName as string)}" where "id" = $1`, params: [ id ] });
@@ -495,7 +495,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 		/**
 		 * Fetches a single entity from the database, but returns null if the entity is not found
 		 */
-		async function findOneOrNull<N extends EntityName<ED>>(entityName: N, id: string): Promise<OutputType<ED, EntityByName<ED, N>> | null> {
+		async function findOneOrNull<N extends EntityName<ED>>(entityName: N, id: string): Promise<OutputTypeByName<ED>[N] | null> {
 			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'findOneOrNull' });
 
 			const rows = await nativeQuery({ sql: `select * from "${camelCaseToSnakeCase(entityName as string)}" where "id" = $1`, params: [ id ] });
@@ -505,7 +505,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 			// Update the loaded entities cache
 			updateCacheWithNewEntities(entityName, rows);
 
-			return createOutputTypeFromRawSqlType(entityName, rows[0]) as OutputType<ED, EntityByName<ED, N>>;
+			return createOutputTypeFromRawSqlType(entityName, rows[0]) as OutputTypeByName<ED>[N];
 		}
 
 		/**
@@ -532,13 +532,13 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 			// Get rows in order of ids passed in
 			const orderedRows = ids.map(id => rowsById[id]);
 
-			return orderedRows.map(r => createOutputTypeFromRawSqlType(entityName, r)) as OutputType<ED, EntityByName<ED, N>>[];
+			return orderedRows.map(r => createOutputTypeFromRawSqlType(entityName, r)) as OutputTypeByName<ED>[N][];
 		}
 
 		/**
 		 * Fetches multiple entities from the database
 		 */
-		async function findMany<N extends EntityName<ED>>(entityName: N, options?: FindManyOptions<ED, EntityByName<ED, N>>): Promise<OutputType<ED, EntityByName<ED, N>>[]> {
+		async function findMany<N extends EntityName<ED>>(entityName: N, options?: FindManyOptions<ED, EntityByName<ED, N>>): Promise<OutputTypeByName<ED>[N][]> {
 			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'findMany' });
 
 			const empty: SqlStatement = { sql: '', params: [] };
@@ -555,7 +555,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 			updateCacheWithNewEntities(entityName, rows);
 
 			// Output the fetched entities as full entity objects
-			return rows.map(r => createOutputTypeFromRawSqlType(entityName, r)) as OutputType<ED, EntityByName<ED, N>>[];
+			return rows.map(r => createOutputTypeFromRawSqlType(entityName, r)) as OutputTypeByName<ED>[N][];
 		}
 
 		/**
@@ -578,7 +578,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 		 * Finds both a limited amount of entities and the total amount of entities that match the where clause
 		 * This can be useful in paginated contexts=
 		 */
-		async function findManyAndCount<N extends EntityName<ED>>(entityName: N, options?: FindManyOptions<ED, EntityByName<ED, N>>): Promise<{ results: OutputType<ED, EntityByName<ED, N>>[], total: number }> {
+		async function findManyAndCount<N extends EntityName<ED>>(entityName: N, options?: FindManyOptions<ED, EntityByName<ED, N>>): Promise<{ results: OutputTypeByName<ED>[N][], total: number }> {
 			const results = await findMany(entityName, options);
 			const total = await count(entityName, options == null ? undefined : { where: options?.where });
 			return { results, total };
@@ -604,7 +604,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 		/**
 		 * Saves a single entity
 		 */
-		async function saveOne<N extends EntityName<ED>>(entityName: N, entity: InputType<ED, EntityByName<ED, N>>): Promise<OutputType<ED, EntityByName<ED, N>>> {
+		async function saveOne<N extends EntityName<ED>>(entityName: N, entity: InputTypeByName<ED>[N]): Promise<OutputTypeByName<ED>[N]> {
 			const results = await saveMany(entityName, [ entity ]);
 			if (results.length < 1) throw new OrmError('ORM-1300', { entity: entityName as string, operation: 'saveOne' }, queryStatistics.queries);
 			return results[0];
@@ -615,7 +615,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 		 * Should always accept OutputType<E> or OutputType<E>[] as inputs so we can always fetch and immediately save the result of a findOne/findMany
 		 * In addition, we should define various input types to allow for updates from manually created objects that satisfy the shape of the entity
 		 */
-		const saveMany = async <N extends EntityName<ED>>(entityName: N, entities: InputType<ED, EntityByName<ED, N>>[]): Promise<OutputType<ED, EntityByName<ED, N>>[]> => {
+		const saveMany = async <N extends EntityName<ED>>(entityName: N, entities: InputTypeByName<ED>[N][]): Promise<OutputTypeByName<ED>[N][]> => {
 			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'saveMany' });
 			const entityDefinition = this.entityDefinitions[entityName];
 			const tableName = camelCaseToSnakeCase(entityName as string);
@@ -843,7 +843,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 				});
 			}
 
-			return rows.map(row => createOutputTypeFromRawSqlType(entityName, row)) as OutputType<ED, EntityByName<ED, N>>[];
+			return rows.map(row => createOutputTypeFromRawSqlType(entityName, row)) as OutputTypeByName<ED>[N][];
 		};
 
 		function prepValueForPgFormat(input: any): any {
