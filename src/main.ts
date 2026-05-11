@@ -33,7 +33,10 @@ type Limit = number;
 
 // Describes the options for the findMany function
 // Makes sure that you cannot set an offset/limit without also specifying an orderBy
-type FindManyOptions<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> = { where?: WhereClause<ED, E>, orderBy?: OrderByClause<ED, E> } | { where?: WhereClause<ED, E>, orderBy: OrderByClause<ED, E>, offset: Offset, limit: Limit };
+type FindManyOptions<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> =
+	{ where?: WhereClause<ED, E>, orderBy?: OrderByClause<ED, E> } |
+	{ where?: WhereClause<ED, E>, orderBy: OrderByClause<ED, E>, offset: Offset, limit: Limit } |
+	{ query: SqlStatement, offset?: Offset, limit?: Limit };
 
 function whereClauseToSql<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>>(whereClause: WhereClause<ED, E>): SqlStatement {
 	return whereClause; // this function will become more complicated later on
@@ -542,13 +545,22 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'findMany' });
 
 			const empty: SqlStatement = { sql: '', params: [] };
-			const sqlStatement = mergeSql(
-				{ sql: `select * from "${camelCaseToSnakeCase(entityName as string)}"`, params: [] },
-				options?.where != null ? mergeSql({ sql: 'where', params: [] }, whereClauseToSql(options.where)) : empty,
-				options?.orderBy != null ? mergeSql({ sql: 'order by', params: [] }, orderByToSql(options.orderBy)) : empty,
-				options != null && 'offset' in options && options.offset != null ? { sql: 'offset $1', params: [ options.offset ] } : empty,
-				options != null && 'limit' in options && options.limit != null ? { sql: 'limit $1', params: [ options.limit ] } : empty,
-			);
+			let sqlStatement: SqlStatement;
+			if (options != null && 'query' in options) {
+				sqlStatement = mergeSql(
+					options.query,
+					options != null && 'offset' in options && options.offset != null ? { sql: 'offset $1', params: [ options.offset ] } : empty,
+					options != null && 'limit' in options && options.limit != null ? { sql: 'limit $1', params: [ options.limit ] } : empty,
+				);
+			} else {
+				sqlStatement = mergeSql(
+					{ sql: `select * from "${camelCaseToSnakeCase(entityName as string)}"`, params: [] },
+					options?.where != null ? mergeSql({ sql: 'where', params: [] }, whereClauseToSql(options.where)) : empty,
+					options?.orderBy != null ? mergeSql({ sql: 'order by', params: [] }, orderByToSql(options.orderBy)) : empty,
+					options != null && 'offset' in options && options.offset != null ? { sql: 'offset $1', params: [ options.offset ] } : empty,
+					options != null && 'limit' in options && options.limit != null ? { sql: 'limit $1', params: [ options.limit ] } : empty,
+				);
+			}
 			const rows = await nativeQuery(sqlStatement);
 
 			// Update loaded entities cache
@@ -562,14 +574,23 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 		 * Counts the amount of entities filtered by the where clause
 		 * Has no orderby, offset, or limit, because none of those affect the count() of the full query
 		 */
-		async function count<N extends EntityName<ED>>(entityName: N, options?: { where?: WhereClause<ED, EntityByName<ED, N>> }): Promise<number> {
+		async function count<N extends EntityName<ED>>(entityName: N, options?: { where?: WhereClause<ED, EntityByName<ED, N>> } | { query: SqlStatement }): Promise<number> {
 			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'count' });
 
 			const empty: SqlStatement = { sql: '', params: [] };
-			const sqlStatement = mergeSql(
-				{ sql: `select count("id") as "amount" from "${camelCaseToSnakeCase(entityName as string)}"`, params: [] },
-				options?.where != null ? mergeSql({ sql: 'where', params: [] }, whereClauseToSql(options.where)) : empty,
-			);
+			let sqlStatement: SqlStatement;
+			if (options != null && 'query' in options) {
+				sqlStatement = mergeSql(
+					{ sql: `select count("id") as "amount" from (`, params: [] },
+					options.query,
+					{ sql: `) as subquery_to_count`, params: [] },
+				);
+			} else {
+				sqlStatement = mergeSql(
+					{ sql: `select count("id") as "amount" from "${camelCaseToSnakeCase(entityName as string)}"`, params: [] },
+					options?.where != null ? mergeSql({ sql: 'where', params: [] }, whereClauseToSql(options.where)) : empty,
+				);
+			}
 			const rows = await nativeQuery(sqlStatement);
 			return rows[0]['amount'];
 		}
@@ -580,7 +601,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 		 */
 		async function findManyAndCount<N extends EntityName<ED>>(entityName: N, options?: FindManyOptions<ED, EntityByName<ED, N>>): Promise<{ results: OutputTypeByName<ED>[N][], total: number }> {
 			const results = await findMany(entityName, options);
-			const total = await count(entityName, options == null ? undefined : { where: options?.where });
+			const total = await count(entityName, options);
 			return { results, total };
 		}
 
