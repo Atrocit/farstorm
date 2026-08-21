@@ -62,7 +62,7 @@ const defaultFieldTypes = {
 	string: defineCustomField(false, (x: string) => x, (x: string) => x),
 	boolean: defineCustomField(false, (x: boolean) => x, (x: boolean) => x),
 	Date: defineCustomField(false, (x: string) => new Date(x), (x: Date) => x.toISOString()),
-	Json: defineCustomField(false, (x: any) => x, (x: any) => x),
+	Json: defineCustomField(false, (x: any) => x, (x: any) => JSON.stringify(x)),
 } as const;
 
 export function defineField<Null extends Nullable, T extends keyof typeof defaultFieldTypes>(type: T, nullable: Null): Omit<typeof defaultFieldTypes[T], 'nullableOnInput' | 'nullableOnOutput'> & { nullableOnInput: Null, nullableOnOutput: Null } {
