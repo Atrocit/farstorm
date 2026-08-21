@@ -10,6 +10,7 @@ const TodoItemSpec = defineEntity({
 		timesViewed: defineField('number', false),
 		chanceOfSuccess: defineField('number', false),
 		description: defineField('string', false),
+		metadata: defineField('Json', true),
 	},
 } as const);
 
@@ -32,7 +33,8 @@ describe('PGLite: field types', () => {
 					created_at2 timestamp not null default now(),
 					times_viewed bigint not null,
 					chance_of_success decimal(4, 2) not null,
-					description character varying not null
+					description character varying not null,
+					metadata jsonb
 				);
 			`);
 		});
@@ -97,6 +99,25 @@ describe('PGLite: field types', () => {
 			const fetchedTodoItem = await findOne('TodoItem', todoItem.id);
 			expect(typeof fetchedTodoItem.chanceOfSuccess).toBe('number');
 			expect(fetchedTodoItem.chanceOfSuccess).toBe(0.5);
+		});
+		await cleanup();
+	});
+
+	it('Json fields should support updates to an empty array', async () => {
+		const { db, cleanup } = await setup();
+		await db.inTransaction(async ({ findOne, saveOne }) => {
+			const todoItem = await saveOne('TodoItem', {
+				description: 'Test',
+				timesViewed: 1,
+				chanceOfSuccess: 0.5,
+				metadata: [ 'initial value' ],
+			});
+
+			todoItem.metadata = [];
+			await saveOne('TodoItem', todoItem);
+
+			const fetchedTodoItem = await findOne('TodoItem', todoItem.id);
+			expect(fetchedTodoItem.metadata).toEqual([]);
 		});
 		await cleanup();
 	});
