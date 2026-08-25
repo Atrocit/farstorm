@@ -55,6 +55,22 @@ await farstorm.inTransaction(async orm => {
 });
 ```
 
+### Audit logging
+
+After you enable audit logging with `farstorm.enableAuditLogging()`, all entities use `auditLogging: 'ENABLED'` by default. Set `auditLogging` to `'DISABLED'` in an entity definition to exclude that entity:
+
+```ts
+const entityDefinitions = {
+	'UserSession': defineEntity({
+		auditLogging: 'DISABLED',
+		fields: {
+			id: defineIdField(),
+			expiresAt: defineField('Date', false),
+		},
+	}),
+};
+```
+
 ## Drivers
 - PostgreSQL: Fully supported out of the box via the `postgresql` driver (uses the `pg` package).
 - PgLite: An optional in-process PostgreSQL-compatible driver. If you use `type: 'pglite'`, you must install the PGlite package yourself, as it is not a required dependency of Farstorm.
