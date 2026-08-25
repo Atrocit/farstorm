@@ -55,8 +55,7 @@ type FindOneOptions = { lock?: RowLockOptions };
 
 // Describes the options for the findMany function
 // Makes sure that you cannot set an offset/limit without also specifying an orderBy
-type FindManyOptions<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> = { where?: WhereClause<ED, E>, orderBy?: OrderByClause<ED, E> } | { where?: WhereClause<ED, E>, orderBy: OrderByClause<ED, E>, offset: Offset, limit: Limit };
-type LockableFindManyOptions<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> = FindManyOptions<ED, E> & { lock?: RowLockOptions };
+type FindManyOptions<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> = { where?: WhereClause<ED, E>, orderBy?: OrderByClause<ED, E>, lock?: RowLockOptions } | { where?: WhereClause<ED, E>, orderBy: OrderByClause<ED, E>, lock?: RowLockOptions, offset: Offset, limit: Limit };
 
 function whereClauseToSql<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>>(whereClause: WhereClause<ED, E>): SqlStatement {
 	return whereClause; // this function will become more complicated later on
@@ -89,7 +88,7 @@ type DbFunctions<ED extends BaseEntityDefinitions> = {
 	findOne: <N extends EntityName<ED>>(entityName: N, id: string, options?: FindOneOptions) => Promise<OutputTypeByName<ED>[N]>,
 	findOneOrNull: <N extends EntityName<ED>>(entityName: N, id: string) => Promise<OutputTypeByName<ED>[N] | null>,
 	findByIds: <N extends EntityName<ED>>(entityName: N, ids: string[]) => Promise<OutputTypeByName<ED>[N][]>,
-	findMany: <N extends EntityName<ED>>(entityName: N, options: LockableFindManyOptions<ED, EntityByName<ED, N>>) => Promise<OutputTypeByName<ED>[N][]>,
+	findMany: <N extends EntityName<ED>>(entityName: N, options: FindManyOptions<ED, EntityByName<ED, N>>) => Promise<OutputTypeByName<ED>[N][]>,
 	count: <N extends EntityName<ED>>(entityName: N, options?: { where?: WhereClause<ED, EntityByName<ED, N>> }) => Promise<number>,
 	findManyAndCount: <N extends EntityName<ED>>(entityName: N, options: FindManyOptions<ED, EntityByName<ED, N>>) => Promise<{ results: OutputTypeByName<ED>[N][], total: number }>,
 	nativeQuery: (sqlStatement: SqlStatement) => Promise<any[]>,
@@ -577,7 +576,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 		/**
 		 * Fetches multiple entities from the database
 		 */
-		async function findMany<N extends EntityName<ED>>(entityName: N, options?: LockableFindManyOptions<ED, EntityByName<ED, N>>): Promise<OutputTypeByName<ED>[N][]> {
+		async function findMany<N extends EntityName<ED>>(entityName: N, options?: FindManyOptions<ED, EntityByName<ED, N>>): Promise<OutputTypeByName<ED>[N][]> {
 			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'findMany' });
 
 			const empty: SqlStatement = { sql: '', params: [] };
