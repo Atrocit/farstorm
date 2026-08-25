@@ -96,7 +96,7 @@ await orm.saveOne('Inventory', {
 
 Installation when using PgLite:
 - npm: `npm install @electric-sql/pglite`
-- yarn: `yarn add @electric-sql/pglite`
+- pnpm: `pnpm add @electric-sql/pglite`
 
 Example usage with PgLite:
 ```ts
@@ -147,8 +147,8 @@ For all three cases the [CHANGELOG.md file](https://github.com/Atrocit/Farstorm/
 ## Releasing
 Assuming you have write access to the repository for Farstorm, including write access to the package hosting, releasing can be done like this:
 
-Step 1: Build by running `yarn build`  
-Step 2: Run `yarn changeset version`, the new version will automatically be determined by the changesets  
+Step 1: Build by running `pnpm build`
+Step 2: Run `pnpm changeset version`, the new version will automatically be determined by the changesets
 Step 3: Review and commit the changes made by changeset
-Step 4: Run `yarn changeset publish`
+Step 4: Run `pnpm changeset publish`
 Step 5: `git push; git push --tags` the newly created commit onto `master`, including the version tags
