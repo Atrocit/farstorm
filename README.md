@@ -71,6 +71,25 @@ const entityDefinitions = {
 };
 ```
 
+## Row locking
+
+`findOne` and `findMany` can lock the selected rows until the transaction commits or rolls back. Use a row lock when a transaction must read a row before it decides how to update related data.
+
+```ts
+const inventory = await orm.findOne('Inventory', inventoryId, {
+	lock: { mode: 'update', wait: 'noWait' },
+});
+
+if (inventory.available < requestedAmount) {
+	throw new Error('Not enough inventory');
+}
+
+await orm.saveOne('Inventory', {
+	...inventory,
+	available: inventory.available - requestedAmount,
+});
+```
+
 ## Drivers
 - PostgreSQL: Fully supported out of the box via the `postgresql` driver (uses the `pg` package).
 - PgLite: An optional in-process PostgreSQL-compatible driver. If you use `type: 'pglite'`, you must install the PGlite package yourself, as it is not a required dependency of Farstorm.

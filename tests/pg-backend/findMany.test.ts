@@ -110,4 +110,50 @@ describe('Postgres: findMany', () => {
 			]);
 		});
 	});
+
+	it('findMany() with a weaker row lock', async () => {
+		const { db, cleanup } = await setup();
+		await db.inTransaction(async ({ findMany }) => {
+			const events = await findMany('Event', {
+				where: sql`id = 1`,
+				lock: { mode: 'keyShare' },
+			});
+			expect(events.map(hideRelations)).toEqual([
+				{ id: '1', name: 'Event 1', createdAt: new Date('2024-01-01T00:00:00Z') },
+			]);
+		});
+		await cleanup();
+	});
+
+	it('findMany() skips rows locked by another transaction', async () => {
+		const { db, cleanup } = await setup();
+		let markLockAcquired!: () => void;
+		let releaseLock!: () => void;
+		const lockAcquired = new Promise<void>(resolve => { markLockAcquired = resolve; });
+		const holdLock = new Promise<void>(resolve => { releaseLock = resolve; });
+		const lockingTransaction = db.inTransaction(async ({ findOne }) => {
+			await findOne('Event', '1', { lock: { mode: 'update' } });
+			markLockAcquired();
+			await holdLock;
+		});
+		await lockAcquired;
+
+		try {
+			await db.inTransaction(async ({ findMany }) => {
+				const events = await findMany('Event', {
+					orderBy: sql`id asc`,
+					lock: { mode: 'update', wait: 'skipLocked' },
+				});
+				expect(events.map(hideRelations)).toEqual([
+					{ id: '2', name: 'Event 2', createdAt: new Date('2024-01-01T00:00:00Z') },
+					{ id: '3', name: 'Event 3', createdAt: new Date('2024-01-01T00:00:00Z') },
+					{ id: '4', name: 'Event 4', createdAt: new Date('2024-01-01T00:00:00Z') },
+				]);
+			});
+		} finally {
+			releaseLock();
+			await lockingTransaction;
+			await cleanup();
+		}
+	});
 });

@@ -70,6 +70,14 @@ const ormCodeMap = {
 		message: 'Query returned different number of rows than expected based on input',
 		explanation: `The query returned a different number of rows than expected based on the input. When fetching multiple items by ID this can either be caused by trying to fetch IDs that do not occur in the database, or by multiple rows having the same IDs.`,
 	},
+	'ORM-1203': {
+		message: 'Unsupported row lock mode',
+		explanation: `The row lock mode is not supported. Use 'update', 'noKeyUpdate', 'share', or 'keyShare'.`,
+	},
+	'ORM-1204': {
+		message: 'Unsupported row lock wait behavior',
+		explanation: `The row lock wait behavior is not supported. Use 'wait', 'noWait', or 'skipLocked'.`,
+	},
 
 	// Saving / validation errors on write
 	'ORM-1300': {
