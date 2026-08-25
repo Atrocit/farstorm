@@ -104,6 +104,38 @@ describe('Postgres: validateSchema', () => {
 		expect(result.errors.map(e => e.code)).toContain('ORM-SV-3001');
 	});
 
+	it('should error when an input-nullable field maps to a required column without a default', async () => {
+		const result = await runValidationAgainstSchema(`
+			create table "account" (id bigserial primary key, display_name character varying not null);
+		`, `drop table if exists "account" cascade;`, {
+			Account: defineEntity({
+				fields: {
+					id: defineIdField(),
+					displayName: defineField('string', true),
+				},
+			}),
+		});
+		expect(result.valid).toBe(false);
+		if (result.valid) return;
+		expect(result.errors.map(e => e.code)).toContain('ORM-SV-3002');
+	});
+
+	it('should error when a required output field maps to a nullable column', async () => {
+		const result = await runValidationAgainstSchema(`
+			create table "account" (id bigserial primary key, display_name character varying);
+		`, `drop table if exists "account" cascade;`, {
+			Account: defineEntity({
+				fields: {
+					id: defineIdField(),
+					displayName: defineField('string', false),
+				},
+			}),
+		});
+		expect(result.valid).toBe(false);
+		if (result.valid) return;
+		expect(result.errors.map(e => e.code)).toContain('ORM-SV-3003');
+	});
+
 	it('should error when missing columns for one-to-one relation fields', async () => {
 		const result = await runValidationAgainstSchema(`
 			create table "user" (id bigserial primary key, full_name character varying not null, username character varying not null);
@@ -138,6 +170,18 @@ describe('Postgres: validateSchema', () => {
 		expect(result.valid).toBe(false);
 		if (result.valid) return;
 		expect(result.errors.map(e => e.code)).toContain('ORM-SV-3101');
+	});
+
+	it('should error when owned and inverse one-to-one columns are not bigint', async () => {
+		const result = await runValidationAgainstSchema(`
+			create table "user" (id bigserial primary key, full_name character varying not null, username character varying not null);
+			create table "todo_item" (id bigserial primary key, created_at timestamptz not null, description character varying not null, author_id bigint not null references "user");
+			alter table "user" add column favorite_todo_id integer;
+		`, `drop table if exists "user", "todo_item" cascade;`, entitySchema);
+		expect(result.valid).toBe(false);
+		if (result.valid) return;
+		expect(result.errors.map(e => e.code)).toContain('ORM-SV-3102');
+		expect(result.errors.map(e => e.code)).toContain('ORM-SV-3112');
 	});
 
 	it('should report the correct errors for non-bigint many-to-one columns', async () => {

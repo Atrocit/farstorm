@@ -138,4 +138,48 @@ describe('Postgres: relations fetching', () => {
 
 		await cleanup();
 	});
+
+	it('invalidates cached relations when a related entity is inserted', async () => {
+		const { db, cleanup } = await setup();
+
+		await db.inTransaction(async ({ findOne, saveOne }) => {
+			const user = await findOne('User', '1');
+			const existingTodoItem = await findOne('TodoItem', '1');
+			const todoDetails = await findOne('TodoDetails', '2');
+
+			expect(await user.todoItems).toHaveLength(1);
+			await existingTodoItem.author;
+
+			await saveOne('TodoItem', {
+				createdAt: new Date('2024-02-01T00:00:00Z'),
+				description: 'New todo item',
+				author: user,
+				todoDetails,
+			});
+
+			expect((await user.todoItems).map(item => item.description)).toEqual([ 'Todo description', 'New todo item' ]);
+		});
+
+		await cleanup();
+	});
+
+	it('invalidates cached inverse relations when a related entity is updated', async () => {
+		const { db, cleanup } = await setup();
+
+		await db.inTransaction(async ({ findOne, saveOne }) => {
+			const user = await findOne('User', '1');
+			const todoDetails = await findOne('TodoDetails', '1');
+			const todoItem = await todoDetails.todoItem;
+
+			await user.todoItems;
+			await todoItem.author;
+			todoItem.description = 'Updated through relation';
+			await saveOne('TodoItem', todoItem);
+
+			expect((await todoDetails.todoItem).description).toBe('Updated through relation');
+			expect((await user.todoItems)[0].description).toBe('Updated through relation');
+		});
+
+		await cleanup();
+	});
 });
