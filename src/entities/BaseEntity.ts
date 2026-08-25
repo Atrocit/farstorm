@@ -1,7 +1,9 @@
 import { Nullable } from "./Nullable.js";
 
+export type AuditLogging = 'ENABLED' | 'DISABLED';
 
 export type BaseEntity = {
+	auditLogging: AuditLogging,
 	fields: Record<string, BaseFieldCustomType<any, any>> & { 'id': BaseIdField },
 	oneToOneOwned: Record<string, OneToOneRelationOwned>,
 	oneToOneInverse: Record<string, OneToOneRelationInverse>,
@@ -10,6 +12,7 @@ export type BaseEntity = {
 };
 
 export type NonStrictBaseEntity = {
+	auditLogging?: AuditLogging,
 	fields: Record<string, BaseFieldCustomType<any, any>> & { 'id': BaseIdField },
 	oneToOneOwned?: Record<string, OneToOneRelationOwned>,
 	oneToOneInverse?: Record<string, OneToOneRelationInverse>,
@@ -37,6 +40,7 @@ type OneToOneRelationInverse = { entity: string, inverse: string, nullable: Null
 type OneToManyRelation = { entity: string, inverse: string, nullable?: never };
 
 export function defineEntity<const T extends NonStrictBaseEntity>(entity: T): {
+	auditLogging: AuditLogging,
 	fields: T['fields'],
 	oneToOneOwned: NonNullable<T['oneToOneOwned']>,
 	oneToOneInverse: NonNullable<T['oneToOneInverse']>,
@@ -49,6 +53,7 @@ export function defineEntity<const T extends NonStrictBaseEntity>(entity: T): {
 	
 	return {
 		...entity,
+		auditLogging: entity.auditLogging ?? 'ENABLED',
 		fields: entity.fields,
 		oneToOneOwned: entity.oneToOneOwned ?? {},
 		oneToOneInverse: entity.oneToOneInverse ?? {},
