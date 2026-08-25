@@ -1,5 +1,5 @@
 import { describe, it, test, expect } from 'vitest';
-import { unwrap } from '../../src/helpers/unwrap';
+import { unwrap, unwrapAll } from '../../src/helpers/unwrap';
 
 describe('Unwrap helper function', () => {
 	it('Should resolve promise at given path', async () => {
@@ -39,5 +39,19 @@ describe('Unwrap helper function', () => {
 		const b = output.b;
 		const c = output.b[0].c;
 		expect(output).toEqual({ a: 1, b: [ { c: Promise.resolve(1) }, { c: Promise.resolve(2) } ] });
+	});
+
+	it('Should resolve selected paths for all input objects', async () => {
+		const input = [
+			{ id: 1, details: Promise.resolve({ name: 'First' }) },
+			{ id: 2, details: Promise.resolve({ name: 'Second' }) },
+		];
+
+		const output = await unwrapAll(input, [ 'details' ]);
+
+		expect(output).toEqual([
+			{ id: 1, details: { name: 'First' } },
+			{ id: 2, details: { name: 'Second' } },
+		]);
 	});
 });

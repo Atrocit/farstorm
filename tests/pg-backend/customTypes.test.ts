@@ -10,6 +10,7 @@ const TodoItemSpec = defineEntity({
 		createdAt: defineField('Date', false),
 		description: defineField('string', false),
 		level: defineCustomField(false, (x: string) => x as TodoItemLevel, (x: TodoItemLevel) => x),
+		customDate: defineCustomField(false, (x: string) => new Date(x), (x: Date) => x),
 	},
 	manyToOne: {
 		author: { entity: 'User', nullable: false },
@@ -51,9 +52,9 @@ describe('Postgres: findOne', () => {
 			await nativeQuery(sql`drop table if exists "user", "todo_item" cascade;`);
 
 			await nativeQuery(sql`create table "user" (id bigserial primary key, full_name character varying not null, username character varying not null)`);
-			await nativeQuery(sql`create table "todo_item" (id bigserial primary key, created_at timestamptz not null, description character varying not null, level character varying not null, author_id bigint not null references "user")`);
+			await nativeQuery(sql`create table "todo_item" (id bigserial primary key, created_at timestamptz not null, description character varying not null, level character varying not null, custom_date timestamptz not null, author_id bigint not null references "user")`);
 			await nativeQuery(sql`insert into "user" (full_name, username) values ('John Doe', 'john');`);
-			await nativeQuery(sql`insert into "todo_item" (created_at, description, level, author_id) values ('2024-01-01T00:00:00Z', 'Todo description', 'normal', 1);`);
+			await nativeQuery(sql`insert into "todo_item" (created_at, description, level, custom_date, author_id) values ('2024-01-01T00:00:00Z', 'Todo description', 'normal', '2024-01-01T00:00:00Z', 1);`);
 		});
 
 		return {
@@ -79,8 +80,10 @@ describe('Postgres: findOne', () => {
 			myTodoItem.level = 'test';
 
 			myTodoItem.level = 'urgent';
+			myTodoItem.customDate = new Date('2025-02-01T00:00:00Z');
 			const updatedTodoItem = await saveOne('TodoItem', myTodoItem);
 			expect(updatedTodoItem.level).toBe('urgent');
+			expect(updatedTodoItem.customDate).toEqual(new Date('2025-02-01T00:00:00Z'));
 		});
 		await cleanup();
 	});

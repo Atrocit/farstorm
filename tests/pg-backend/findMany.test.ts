@@ -156,4 +156,31 @@ describe('Postgres: findMany', () => {
 			await cleanup();
 		}
 	});
+
+	it('count() should count all entities or only matching entities', async () => {
+		const { db, cleanup } = await setup();
+		await db.inTransaction(async ({ count }) => {
+			expect(await count('Event')).toBe(4);
+			expect(await count('Event', { where: sql`organizer_id = 1` })).toBe(3);
+		});
+		await cleanup();
+	});
+
+	it('findManyAndCount() should paginate results but count all matches', async () => {
+		const { db, cleanup } = await setup();
+		await db.inTransaction(async ({ findManyAndCount }) => {
+			const result = await findManyAndCount('Event', {
+				where: sql`organizer_id = 1`,
+				orderBy: sql`id asc`,
+				offset: 1,
+				limit: 1,
+			});
+
+			expect(result.results.map(hideRelations)).toEqual([
+				{ id: '2', name: 'Event 2', createdAt: new Date('2024-01-01T00:00:00Z') },
+			]);
+			expect(result.total).toBe(3);
+		});
+		await cleanup();
+	});
 });

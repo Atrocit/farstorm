@@ -160,4 +160,28 @@ describe('Postgres: findOne', () => {
 			await cleanup();
 		}
 	});
+
+	it('should reject when the entity does not exist', async () => {
+		const { db, cleanup } = await setup();
+		await db.inTransaction(async ({ findOne }) => {
+			await expect(findOne('TodoItem', '999')).rejects.toThrowError(/ORM-1200/);
+		});
+		await cleanup();
+	});
+
+	it('findOneOrNull should return an existing entity or null', async () => {
+		const { db, cleanup } = await setup();
+		await db.inTransaction(async ({ findOneOrNull }) => {
+			const todoItem = await findOneOrNull('TodoItem', '1');
+			const missingTodoItem = await findOneOrNull('TodoItem', '999');
+
+			expect(todoItem == null ? null : hideRelations(todoItem)).toEqual({
+				id: '1',
+				createdAt: new Date('2024-01-01T00:00:00Z'),
+				description: 'Todo description',
+			});
+			expect(missingTodoItem).toBeNull();
+		});
+		await cleanup();
+	});
 });
