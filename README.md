@@ -55,6 +55,22 @@ await farstorm.inTransaction(async orm => {
 });
 ```
 
+### Audit logging
+
+After you enable audit logging with `farstorm.enableAuditLogging()`, all entities use `auditLogging: 'ENABLED'` by default. Set `auditLogging` to `'DISABLED'` in an entity definition to exclude that entity:
+
+```ts
+const entityDefinitions = {
+	'UserSession': defineEntity({
+		auditLogging: 'DISABLED',
+		fields: {
+			id: defineIdField(),
+			expiresAt: defineField('Date', false),
+		},
+	}),
+};
+```
+
 ## Row locking
 
 `findOne` and `findMany` can lock the selected rows until the transaction commits or rolls back. Use a row lock when a transaction must read a row before it decides how to update related data.

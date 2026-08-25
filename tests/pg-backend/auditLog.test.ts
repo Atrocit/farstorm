@@ -9,10 +9,15 @@ const TodoItemSpec = defineEntity({
 	},
 } as const);
 
+const NonAuditedTodoItemSpec = defineEntity({
+	...TodoItemSpec,
+	auditLogging: 'DISABLED',
+} as const);
+
 describe('Postgres: audit log functionality', () => {
-	async function setup() {
+	async function setup(todoItemSpec: typeof TodoItemSpec | typeof NonAuditedTodoItemSpec = TodoItemSpec) {
 		const entityDefinitions = {
-			'TodoItem': TodoItemSpec,
+			'TodoItem': todoItemSpec,
 		} as const;
 
 		const db = new Farstorm({
@@ -163,6 +168,19 @@ describe('Postgres: audit log functionality', () => {
 			auditMetadata: {
 				actor: 'testrunner',
 			},
+		});
+		await cleanup();
+	});
+
+	it('does not generate audit log items for an opted-out entity', async () => {
+		const { db, cleanup } = await setup(NonAuditedTodoItemSpec);
+		await db.inTransaction(async ({ nativeQuery, saveOne, deleteByIds }) => {
+			const todoItem = await saveOne('TodoItem', { description: 'Test' });
+			await saveOne('TodoItem', { ...todoItem, description: 'Test Updated' });
+			await deleteByIds('TodoItem', [ todoItem.id ]);
+
+			const auditLogs = await nativeQuery(sql`select * from audit_log`);
+			expect(auditLogs).toEqual([]);
 		});
 		await cleanup();
 	});
