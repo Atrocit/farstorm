@@ -78,4 +78,86 @@ describe('Postgres: findOne', () => {
 		});
 		await cleanup();
 	});
+
+	it('should block a concurrent update with the default wait behavior', async () => {
+		const { db, cleanup } = await setup();
+		let markLockAcquired!: () => void;
+		let releaseLock!: () => void;
+		const lockAcquired = new Promise<void>(resolve => { markLockAcquired = resolve; });
+		const holdLock = new Promise<void>(resolve => { releaseLock = resolve; });
+		const lockingTransaction = db.inTransaction(async ({ findOne }) => {
+			await findOne('TodoItem', '1', { lock: { mode: 'update' } });
+			markLockAcquired();
+			await holdLock;
+		});
+		await lockAcquired;
+
+		const ignoreExpectedError = () => {};
+		db.on('error', ignoreExpectedError);
+		try {
+			await expect(db.inTransaction(async ({ nativeQuery }) => {
+				await nativeQuery(sql`set local lock_timeout = '100ms'`);
+				await nativeQuery(sql`update "todo_item" set description = 'Changed' where id = 1`);
+			})).rejects.toMatchObject({ code: '55P03' });
+		} finally {
+			releaseLock();
+			await lockingTransaction;
+			db.off('error', ignoreExpectedError);
+			await cleanup();
+		}
+	});
+
+	it('should fail immediately when noWait cannot acquire a lock', async () => {
+		const { db, cleanup } = await setup();
+		let markLockAcquired!: () => void;
+		let releaseLock!: () => void;
+		const lockAcquired = new Promise<void>(resolve => { markLockAcquired = resolve; });
+		const holdLock = new Promise<void>(resolve => { releaseLock = resolve; });
+		const lockingTransaction = db.inTransaction(async ({ findOne }) => {
+			await findOne('TodoItem', '1', { lock: { mode: 'update' } });
+			markLockAcquired();
+			await holdLock;
+		});
+		await lockAcquired;
+
+		const ignoreExpectedError = () => {};
+		db.on('error', ignoreExpectedError);
+		try {
+			await expect(db.inTransaction(async ({ findOne }) => {
+				await findOne('TodoItem', '1', { lock: { mode: 'update', wait: 'noWait' } });
+			})).rejects.toMatchObject({ code: '55P03' });
+		} finally {
+			releaseLock();
+			await lockingTransaction;
+			db.off('error', ignoreExpectedError);
+			await cleanup();
+		}
+	});
+
+	it('should report a skipped locked row as not found', async () => {
+		const { db, cleanup } = await setup();
+		let markLockAcquired!: () => void;
+		let releaseLock!: () => void;
+		const lockAcquired = new Promise<void>(resolve => { markLockAcquired = resolve; });
+		const holdLock = new Promise<void>(resolve => { releaseLock = resolve; });
+		const lockingTransaction = db.inTransaction(async ({ findOne }) => {
+			await findOne('TodoItem', '1', { lock: { mode: 'update' } });
+			markLockAcquired();
+			await holdLock;
+		});
+		await lockAcquired;
+
+		const ignoreExpectedError = () => {};
+		db.on('error', ignoreExpectedError);
+		try {
+			await expect(db.inTransaction(async ({ findOne }) => {
+				await findOne('TodoItem', '1', { lock: { mode: 'update', wait: 'skipLocked' } });
+			})).rejects.toThrow('[ORM-1200]');
+		} finally {
+			releaseLock();
+			await lockingTransaction;
+			db.off('error', ignoreExpectedError);
+			await cleanup();
+		}
+	});
 });

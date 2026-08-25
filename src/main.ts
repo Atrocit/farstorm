@@ -31,9 +31,32 @@ type OrderByClause<ED extends BaseEntityDefinitions, E extends EntityDefinition<
 type Offset = number;
 type Limit = number;
 
+export type RowLockMode = 'update' | 'noKeyUpdate' | 'share' | 'keyShare';
+export type RowLockWait = 'wait' | 'noWait' | 'skipLocked';
+export type RowLockOptions = {
+	mode: RowLockMode,
+	wait?: RowLockWait,
+};
+
+const rowLockModeSql: Record<RowLockMode, string> = {
+	update: 'for update',
+	noKeyUpdate: 'for no key update',
+	share: 'for share',
+	keyShare: 'for key share',
+};
+
+const rowLockWaitSql: Record<RowLockWait, string> = {
+	wait: '',
+	noWait: 'nowait',
+	skipLocked: 'skip locked',
+};
+
+type FindOneOptions = { lock?: RowLockOptions };
+
 // Describes the options for the findMany function
 // Makes sure that you cannot set an offset/limit without also specifying an orderBy
 type FindManyOptions<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> = { where?: WhereClause<ED, E>, orderBy?: OrderByClause<ED, E> } | { where?: WhereClause<ED, E>, orderBy: OrderByClause<ED, E>, offset: Offset, limit: Limit };
+type LockableFindManyOptions<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>> = FindManyOptions<ED, E> & { lock?: RowLockOptions };
 
 function whereClauseToSql<ED extends BaseEntityDefinitions, E extends EntityDefinition<ED>>(whereClause: WhereClause<ED, E>): SqlStatement {
 	return whereClause; // this function will become more complicated later on
@@ -43,6 +66,19 @@ function orderByToSql<ED extends BaseEntityDefinitions, E extends EntityDefiniti
 	return orderByClause; // this function will become more complicated later on
 }
 
+function rowLockToSql(lock: RowLockOptions | undefined, entity: string, operation: string): SqlStatement {
+	if (lock == null) return { sql: '', params: [] };
+
+	const mode = rowLockModeSql[lock.mode];
+	if (mode == null) throw new OrmError('ORM-1203', { entity, operation });
+
+	const waitBehavior = lock.wait ?? 'wait';
+	const wait = rowLockWaitSql[waitBehavior];
+	if (wait == null) throw new OrmError('ORM-1204', { entity, operation });
+
+	return { sql: `${mode} ${wait}`.trim(), params: [] };
+}
+
 type TransactionControls = {
 	query: (query: string, params: any[]) => Promise<{ rows: any[] }>,
 	commit: () => Promise<void>,
@@ -50,10 +86,10 @@ type TransactionControls = {
 };
 
 type DbFunctions<ED extends BaseEntityDefinitions> = {
-	findOne: <N extends EntityName<ED>>(entityName: N, id: string) => Promise<OutputTypeByName<ED>[N]>,
+	findOne: <N extends EntityName<ED>>(entityName: N, id: string, options?: FindOneOptions) => Promise<OutputTypeByName<ED>[N]>,
 	findOneOrNull: <N extends EntityName<ED>>(entityName: N, id: string) => Promise<OutputTypeByName<ED>[N] | null>,
 	findByIds: <N extends EntityName<ED>>(entityName: N, ids: string[]) => Promise<OutputTypeByName<ED>[N][]>,
-	findMany: <N extends EntityName<ED>>(entityName: N, options: FindManyOptions<ED, EntityByName<ED, N>>) => Promise<OutputTypeByName<ED>[N][]>,
+	findMany: <N extends EntityName<ED>>(entityName: N, options: LockableFindManyOptions<ED, EntityByName<ED, N>>) => Promise<OutputTypeByName<ED>[N][]>,
 	count: <N extends EntityName<ED>>(entityName: N, options?: { where?: WhereClause<ED, EntityByName<ED, N>> }) => Promise<number>,
 	findManyAndCount: <N extends EntityName<ED>>(entityName: N, options: FindManyOptions<ED, EntityByName<ED, N>>) => Promise<{ results: OutputTypeByName<ED>[N][], total: number }>,
 	nativeQuery: (sqlStatement: SqlStatement) => Promise<any[]>,
@@ -479,10 +515,13 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 		 * User facing function, fetches a single entity from the database
 		 * This function will throw if the entity is not found
 		 */
-		async function findOne<N extends EntityName<ED>>(entityName: N, id: string): Promise<OutputTypeByName<ED>[N]> {
+		async function findOne<N extends EntityName<ED>>(entityName: N, id: string, options?: FindOneOptions): Promise<OutputTypeByName<ED>[N]> {
 			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'findOne' });
 
-			const rows = await nativeQuery({ sql: `select * from "${camelCaseToSnakeCase(entityName as string)}" where "id" = $1`, params: [ id ] });
+			const rows = await nativeQuery(mergeSql(
+				{ sql: `select * from "${camelCaseToSnakeCase(entityName as string)}" where "id" = $1`, params: [ id ] },
+				rowLockToSql(options?.lock, entityName as string, 'findOne'),
+			));
 			if (rows == null || rows.length == 0) throw new OrmError('ORM-1200', { entity: entityName as string, operation: 'findOne' });
 			if (rows.length > 1) throw new OrmError('ORM-1201', { entity: entityName as string, operation: 'findOne' });
 
@@ -538,7 +577,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 		/**
 		 * Fetches multiple entities from the database
 		 */
-		async function findMany<N extends EntityName<ED>>(entityName: N, options?: FindManyOptions<ED, EntityByName<ED, N>>): Promise<OutputTypeByName<ED>[N][]> {
+		async function findMany<N extends EntityName<ED>>(entityName: N, options?: LockableFindManyOptions<ED, EntityByName<ED, N>>): Promise<OutputTypeByName<ED>[N][]> {
 			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'findMany' });
 
 			const empty: SqlStatement = { sql: '', params: [] };
@@ -548,6 +587,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 				options?.orderBy != null ? mergeSql({ sql: 'order by', params: [] }, orderByToSql(options.orderBy)) : empty,
 				options != null && 'offset' in options && options.offset != null ? { sql: 'offset $1', params: [ options.offset ] } : empty,
 				options != null && 'limit' in options && options.limit != null ? { sql: 'limit $1', params: [ options.limit ] } : empty,
+				rowLockToSql(options?.lock, entityName as string, 'findMany'),
 			);
 			const rows = await nativeQuery(sqlStatement);
 
