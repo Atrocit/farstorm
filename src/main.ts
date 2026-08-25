@@ -270,7 +270,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 				}
 
 				const getOneToOneRelation = async () => {
-					if (!transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, relation: relationName, operation: 'resolve-one-to-one-owned' });
+					if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, relation: relationName, operation: 'resolve-one-to-one-owned' });
 
 					if (ownedRelationCache.find(entityName, relationName) == null) {
 						ownedRelationCache.overwrite(entityName, relationName, fetchOneToOneOwnedRelation(entityName, relationName));
@@ -300,7 +300,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 				}
 
 				const getManyToOneRelation = async () => {
-					if (!transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, relation: relationName, operation: 'resolve-many-to-one' });
+					if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, relation: relationName, operation: 'resolve-many-to-one' });
 
 					if (ownedRelationCache.find(entityName, relationName) == null) {
 						ownedRelationCache.overwrite(entityName, relationName, fetchManyToOneRelation(entityName, relationName));
@@ -323,7 +323,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 				const relation = entityDefinition.oneToOneInverse[relationName];
 
 				const getOneToOneInverseRelation = async () => {
-					if (!transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, relation: relationName, operation: 'resolve-one-to-one-inverse' });
+					if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, relation: relationName, operation: 'resolve-one-to-one-inverse' });
 
 					if (inverseRelationCache.find(entityName, relationName) == null) {
 						inverseRelationCache.overwrite(entityName, relationName, fetchOneToOneInverseRelation(entityName, relationName));
@@ -350,7 +350,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 				const relation = entityDefinition.oneToMany[relationName];
 
 				const getOneToMany = async () => {
-					if (!transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, relation: relationName, operation: 'resolve-one-to-many' });
+					if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, relation: relationName, operation: 'resolve-one-to-many' });
 
 					if (inverseRelationCache.find(entityName, relationName) == null) {
 						inverseRelationCache.overwrite(entityName, relationName, fetchOneToManyRelation(entityName, relationName) as any);

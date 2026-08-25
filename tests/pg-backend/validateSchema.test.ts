@@ -140,6 +140,18 @@ describe('Postgres: validateSchema', () => {
 		expect(result.errors.map(e => e.code)).toContain('ORM-SV-3101');
 	});
 
+	it('should report the correct errors for non-bigint many-to-one columns', async () => {
+		const result = await runValidationAgainstSchema(`
+			create table "user" (id bigserial primary key, full_name character varying not null, username character varying not null);
+			create table "todo_item" (id bigserial primary key, created_at timestamptz not null, description character varying not null, author_id integer not null);
+			alter table "user" add column favorite_todo_id bigint references "todo_item";
+		`, `drop table if exists "user", "todo_item" cascade;`, entitySchema);
+		expect(result.valid).toBe(false);
+		if (result.valid) return;
+		expect(result.errors.map(e => e.code)).toContain('ORM-SV-3122');
+		expect(result.errors.map(e => e.code)).toContain('ORM-SV-3132');
+	});
+
 	it('should error when missing columns for many-to-one relation fields', async () => {
 		const result = await runValidationAgainstSchema(`
 			create table "user" (id bigserial primary key, full_name character varying not null, username character varying not null);

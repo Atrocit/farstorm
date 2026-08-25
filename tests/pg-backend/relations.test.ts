@@ -114,4 +114,28 @@ describe('Postgres: relations fetching', () => {
 		});
 		await cleanup();
 	});
+
+	it('should reject fetching relations after the transaction ends', async () => {
+		const { db, cleanup } = await setup();
+		const relationResolvers: Array<() => Promise<unknown>> = [];
+
+		await db.inTransaction(async ({ findOne }) => {
+			const todoItem = await findOne('TodoItem', '1');
+			const todoDetails = await findOne('TodoDetails', '1');
+			const user = await findOne('User', '1');
+
+			relationResolvers.push(
+				() => todoItem.todoDetails,
+				() => todoItem.author,
+				() => todoDetails.todoItem,
+				() => user.todoItems,
+			);
+		});
+
+		for (const resolveRelation of relationResolvers) {
+			await expect(resolveRelation()).rejects.toThrowError(/ORM-1000/);
+		}
+
+		await cleanup();
+	});
 });

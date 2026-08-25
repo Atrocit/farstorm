@@ -117,7 +117,7 @@ export async function validateSchema(entityDefinitions: Record<string, BaseEntit
 				errors.push(new SchemaValidationError('ORM-SV-3121', { entity: entityName, field: fieldName, table: tableName, column: columnName }));
 			}
 			if (table[columnName]['udt_name'] != 'int8') {
-				errors.push(new SchemaValidationError('ORM-SV-3102', { entity: entityName, field: fieldName, table: tableName, column: columnName }));
+				errors.push(new SchemaValidationError('ORM-SV-3122', { entity: entityName, field: fieldName, table: tableName, column: columnName }));
 			}
 		}
 

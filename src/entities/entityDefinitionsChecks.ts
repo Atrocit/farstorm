@@ -19,7 +19,7 @@ export function checkEntityDefinitions(entityDefinitions: Record<string, BaseEnt
 			...oneToManyRelationNames,
 		]);
 
-		for (const name in allNames) {
+		for (const name of allNames) {
 			const inField = fieldNames.has(name);
 			const inOneToOneOwned = oneToOneOwnedRelationNames.has(name);
 			const inOneToOneInverse = oneToOneInverseRelationName.has(name);
