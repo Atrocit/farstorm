@@ -109,6 +109,30 @@ describe('Postgres: audit log functionality', () => {
 		await cleanup();
 	});
 
+	it('records the correct audit diff for each entity in a batch insert', async () => {
+		const { db, cleanup } = await setup();
+
+		await db.inTransaction(async ({ nativeQuery, saveMany }) => {
+			const todoItems = await saveMany('TodoItem', [
+				{ description: 'First item' },
+				{ description: 'Second item' },
+			]);
+			const auditLogs = await nativeQuery(sql`
+				select entity_id, diff
+				from audit_log
+				where "table" = 'todo_item' and type = 'INSERT'
+			`);
+
+			expect(auditLogs).toHaveLength(2);
+			const firstAuditLog = auditLogs.find(auditLog => auditLog.entity_id == todoItems[0].id);
+			const secondAuditLog = auditLogs.find(auditLog => auditLog.entity_id == todoItems[1].id);
+			expect(firstAuditLog.diff.description).toEqual({ old: null, new: 'First item' });
+			expect(secondAuditLog.diff.description).toEqual({ old: null, new: 'Second item' });
+		});
+
+		await cleanup();
+	});
+
 	it('updating should generate an audit log item', async () => {
 		const { db, cleanup } = await setup();
 		await db.inTransaction(async ({ nativeQuery, findOne, saveOne }) => {

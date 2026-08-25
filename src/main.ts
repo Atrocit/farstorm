@@ -762,13 +762,13 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 										now(),
 										txid_current(),
 										'${tableName}',
-										inserted_rows.id,
+										inserted_row.id,
 										'INSERT',
-										(select jsonb_object_agg(new.key, jsonb_build_object('old', null, 'new', new_value)) as changed_fields 
-											from inserted_rows, jsonb_each(to_jsonb(inserted_rows)) as new(key, new_value)
+										(select jsonb_object_agg(field.key, jsonb_build_object('old', null, 'new', field.new_value)) as changed_fields
+											from jsonb_each(to_jsonb(inserted_row)) as field(key, new_value)
 										),
 										${format(`%L`, JSON.stringify(auditMetadata))}
-									from inserted_rows
+									from inserted_rows as inserted_row
 							)
 							select * from inserted_rows;
 						`;
@@ -790,13 +790,13 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 									now(),
 									txid_current(),
 									'${tableName}',
-									inserted_rows.id,
+									inserted_row.id,
 									'INSERT',
-									(select jsonb_object_agg(new.key, jsonb_build_object('old', null, 'new', new_value)) as changed_fields 
-										from inserted_rows, jsonb_each(to_jsonb(inserted_rows)) as new(key, new_value)
+									(select jsonb_object_agg(field.key, jsonb_build_object('old', null, 'new', field.new_value)) as changed_fields
+										from jsonb_each(to_jsonb(inserted_row)) as field(key, new_value)
 									),
 									${format(`%L`, JSON.stringify(auditMetadata))}
-									from inserted_rows
+									from inserted_rows as inserted_row
 							)
 							select * from inserted_rows;
 						`;
