@@ -252,4 +252,19 @@ describe('Postgres: audit log functionality', () => {
 
 		await cleanup();
 	});
+
+	it('audits every insert in a default-only batch', async () => {
+		const { db, cleanup } = await setup();
+
+		await db.inTransaction(async ({ nativeQuery, saveMany }) => {
+			const heartbeats = await saveMany('Heartbeat', [ {}, {} ]);
+			const auditLogs = await nativeQuery(sql`select * from audit_log where "table" = 'heartbeat'`);
+
+			expect(heartbeats).toHaveLength(2);
+			expect(auditLogs).toHaveLength(2);
+			expect(auditLogs.map(auditLog => auditLog.entity_id.toString())).toEqual(expect.arrayContaining(heartbeats.map(heartbeat => heartbeat.id)));
+		});
+
+		await cleanup();
+	});
 });

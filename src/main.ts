@@ -782,10 +782,11 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 					}
 				} else {
 					const insertQuery = `insert into "${tableName}" default values returning *`;
-					if (this.auditLoggingEnabled && entityDefinition.auditLogging == 'ENABLED') {
-						const auditWrappedInsertQuery = `
-							with inserted_rows as (
-								${insertQuery}
+					const insertQueries = entitiesToInsert.map(() => {
+						if (!(this.auditLoggingEnabled && entityDefinition.auditLogging == 'ENABLED')) return insertQuery;
+						return `
+								with inserted_rows as (
+									${insertQuery}
 							), audit_log_insertions as (
 								insert into audit_log (timestamp, transaction_id, "table", entity_id, type, diff, metadata)
 								select
@@ -799,15 +800,12 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 									),
 									${format(`%L`, JSON.stringify(auditMetadata))}
 									from inserted_rows as inserted_row
-							)
-							select * from inserted_rows;
+								)
+								select * from inserted_rows
 						`;
-						insertResult = await nativeQuery({ sql: auditWrappedInsertQuery, params: [] });
-						rows.push(...insertResult);
-					} else {
-						insertResult = await nativeQuery({ sql: insertQuery, params: [] });
-						rows.push(...insertResult);
-					}
+					});
+					insertResult = await nativeQuery({ sql: insertQueries.join('; '), params: [] });
+					rows.push(...insertResult);
 				}
 
 				// Update the list of changes

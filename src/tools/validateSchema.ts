@@ -48,10 +48,12 @@ export async function validateSchema(entityDefinitions: Record<string, BaseEntit
 				continue;
 			}
 			if (columnName != 'id') {
-				if (!fieldDefinition.readOnly && table[columnName]['is_nullable'] == 'NO' && isNullable(fieldDefinition.nullableOnInput) && table[columnName]['column_default'] == null) {
+				const column = table[columnName];
+				const hasDatabaseValueSource = column['column_default'] != null || column['is_generated'] == 'ALWAYS' || column['is_identity'] == 'YES';
+				if (column['is_nullable'] == 'NO' && isNullable(fieldDefinition.nullableOnInput) && !hasDatabaseValueSource) {
 					errors.push(new SchemaValidationError('ORM-SV-3002', { entity: entityName, field: fieldName, table: tableName, column: columnName }));
 				}
-				if (table[columnName]['is_nullable'] == 'YES' && !isNullable(fieldDefinition.nullableOnOutput)) {
+				if (column['is_nullable'] == 'YES' && !isNullable(fieldDefinition.nullableOnOutput)) {
 					errors.push(new SchemaValidationError('ORM-SV-3003', { entity: entityName, field: fieldName, table: tableName, column: columnName }));
 				}
 			}

@@ -74,6 +74,20 @@ describe('Dummy backend: read-only fields', () => {
 		expect(runQuery.mock.calls[0]?.[1]).not.toContain(999);
 	});
 
+	it('inserts a default-only batch in one database round trip', async () => {
+		const runQuery = vi.fn(async (query: string) => {
+			const insertCount = query.match(/insert into "read_model" default values returning \*/g)?.length ?? 0;
+			return { rows: Array.from({ length: insertCount }, (_, index) => ({ id: index + 1, computed_value: 'current' })) };
+		});
+		const db = new Farstorm({ type: 'dummy', runQuery }, entityDefinitions);
+
+		const results = await db.inTransaction(({ saveMany }) => saveMany('ReadModel', [ {}, {} ]));
+
+		expect(runQuery).toHaveBeenCalledOnce();
+		expect(runQuery.mock.calls[0]?.[0].match(/insert into "read_model" default values returning \*/g)).toHaveLength(2);
+		expect(results).toHaveLength(2);
+	});
+
 	it('fetches the current row when an update has no writable fields', async () => {
 		const runQuery = vi.fn(async (query: string) => {
 			if (query.startsWith('select')) return { rows: [ { id: 1, computed_value: 'current' } ] };
