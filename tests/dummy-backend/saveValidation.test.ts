@@ -33,6 +33,9 @@ describe('Dummy backend: save validation', () => {
 		if (query.startsWith('select')) {
 			return { rows: [ { id: 1, name: 'Alice', profile_id: 2, team_id: 3 } ] };
 		}
+		if (query.startsWith('insert')) {
+			return { rows: [ { id: 1, name: 'Alice', profile_id: 2, team_id: 3 } ] };
+		}
 		if (query.startsWith('update')) {
 			return { rows: [ { id: 1, name: 'Alice', profile_id: 2, team_id: 3 } ] };
 		}
@@ -81,5 +84,36 @@ describe('Dummy backend: save validation', () => {
 
 		expect(runQuery).toHaveBeenCalledTimes(2);
 		expect(runQuery.mock.calls[1]?.[0]).toMatch(/^update "user"/);
+	});
+
+	it('ignores unknown properties when it inserts an entity', async () => {
+		runQuery.mockClear();
+
+		await db.inTransaction(({ saveOne }) => saveOne('User', {
+			name: 'Alice',
+			profile: { id: '2' },
+			team: { id: '3' },
+			unexpected: 'do not write this',
+		} as UserInput));
+
+		expect(runQuery).toHaveBeenCalledTimes(1);
+		expect(runQuery.mock.calls[0]?.[0]).not.toContain('unexpected');
+		expect(runQuery.mock.calls[0]?.[1]).not.toContain('do not write this');
+	});
+
+	it('ignores unknown properties when it updates an entity', async () => {
+		runQuery.mockClear();
+
+		await db.inTransaction(({ saveOne }) => saveOne('User', {
+			id: '1',
+			name: 'Alice',
+			profile: { id: '2' },
+			team: { id: '3' },
+			unexpected: 'do not write this',
+		} as UserInput));
+
+		expect(runQuery).toHaveBeenCalledTimes(1);
+		expect(runQuery.mock.calls[0]?.[0]).not.toContain('unexpected');
+		expect(runQuery.mock.calls[0]?.[0]).not.toContain('do not write this');
 	});
 });

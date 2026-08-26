@@ -48,7 +48,7 @@ export async function validateSchema(entityDefinitions: Record<string, BaseEntit
 				continue;
 			}
 			if (columnName != 'id') {
-				if (table[columnName]['is_nullable'] == 'NO' && isNullable(fieldDefinition.nullableOnInput) && table[columnName]['column_default'] == null) {
+				if (!fieldDefinition.readOnly && table[columnName]['is_nullable'] == 'NO' && isNullable(fieldDefinition.nullableOnInput) && table[columnName]['column_default'] == null) {
 					errors.push(new SchemaValidationError('ORM-SV-3002', { entity: entityName, field: fieldName, table: tableName, column: columnName }));
 				}
 				if (table[columnName]['is_nullable'] == 'YES' && !isNullable(fieldDefinition.nullableOnOutput)) {
