@@ -396,4 +396,20 @@ describe('Postgres: validateSchema', () => {
 		expect(result.warnings.map(w => w.code)).toContain('ORM-SV-3104');
 	});
 
+	it('does not use partial indexes to validate relations', async () => {
+		const result = await runValidationAgainstSchema(`
+			create table "user" (id bigserial primary key, full_name character varying not null, username character varying not null);
+			create table "todo_item" (id bigserial primary key, created_at timestamptz not null, description character varying not null, author_id bigint not null references "user");
+			alter table "user" add column favorite_todo_id bigint references "todo_item";
+			create index on "todo_item" (author_id, created_at) where description <> '';
+			create unique index on "user" (favorite_todo_id) where username <> '';
+		`, `drop table if exists "user", "todo_item" cascade;`, entitySchema);
+		expect(result.valid).toBe(true);
+		expect(result.warnings.map(w => w.code)).toEqual(expect.arrayContaining([
+			'ORM-SV-3104',
+			'ORM-SV-3113',
+			'ORM-SV-3133',
+		]));
+	});
+
 });

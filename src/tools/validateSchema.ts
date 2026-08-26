@@ -39,6 +39,7 @@ export async function validateSchema(entityDefinitions: Record<string, BaseEntit
 		where
 			namespace.nspname not ilike 'pg_%' and
 			namespace.nspname <> 'information_schema' and
+			index_info.indpred is null and
 			(${schema}::varchar is null or namespace.nspname = ${schema});
 	`);
 
