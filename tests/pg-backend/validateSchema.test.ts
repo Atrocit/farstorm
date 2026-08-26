@@ -1,6 +1,6 @@
 import { describe, it, test, expect } from 'vitest';
 import { Farstorm, SchemaValidationResult, sql } from '../../src/main.js';
-import { BaseEntity, defineEntity, defineField, defineIdField } from '../../src/entities/BaseEntity';
+import { BaseEntity, defineEntity, defineField, defineIdField, defineReadonlyField } from '../../src/entities/BaseEntity';
 
 const entitySchema = {
 	'TodoItem': defineEntity({
@@ -118,6 +118,55 @@ describe('Postgres: validateSchema', () => {
 		expect(result.valid).toBe(false);
 		if (result.valid) return;
 		expect(result.errors.map(e => e.code)).toContain('ORM-SV-3002');
+	});
+
+	it('rejects a required read-only column without a database-side value source', async () => {
+		const result = await runValidationAgainstSchema(`
+			create table "account" (id bigserial primary key, display_name character varying not null);
+		`, `drop table if exists "account" cascade;`, {
+			Account: defineEntity({
+				fields: {
+					id: defineIdField(),
+					displayName: defineReadonlyField('string', false),
+				},
+			}),
+		});
+		expect(result.valid).toBe(false);
+		if (result.valid) return;
+		expect(result.errors.map(e => e.code)).toContain('ORM-SV-3002');
+	});
+
+	it('accepts a required read-only column with a default', async () => {
+		const result = await runValidationAgainstSchema(`
+			create table "account" (id bigserial primary key, display_name character varying not null default 'computed');
+		`, `drop table if exists "account" cascade;`, {
+			Account: defineEntity({
+				fields: {
+					id: defineIdField(),
+					displayName: defineReadonlyField('string', false),
+				},
+			}),
+		});
+		expect(result.valid).toBe(true);
+	});
+
+	it('accepts a required generated read-only column', async () => {
+		const result = await runValidationAgainstSchema(`
+			create table "account" (
+				id bigserial primary key,
+				base_value bigint not null,
+				computed_value bigint generated always as (base_value + 1) stored not null
+			);
+		`, `drop table if exists "account" cascade;`, {
+			Account: defineEntity({
+				fields: {
+					id: defineIdField(),
+					baseValue: defineField('number', false),
+					computedValue: defineReadonlyField('number', false),
+				},
+			}),
+		});
+		expect(result.valid).toBe(true);
 	});
 
 	it('should error when a required output field maps to a nullable column', async () => {

@@ -71,6 +71,22 @@ const entityDefinitions = {
 };
 ```
 
+### Read-only fields
+
+Use a read-only field for a database column that Farstorm must fetch but must never insert or update. A database trigger, generated column, or separate process can maintain the value.
+
+```ts
+const TrainTrack = defineEntity({
+	fields: {
+		id: defineIdField(),
+		coordinates: defineField('Json', false),
+		trackLength: defineReadonlyField('number', false),
+	},
+});
+```
+
+The field is part of the query output, but it is not part of `InputType`. If you pass a fetched entity back to `saveOne` or `saveMany`, Farstorm ignores the read-only value. Farstorm also ignores input properties that are not in the entity definition.
+
 ## Row locking
 
 `findOne` and `findMany` can lock the selected rows until the transaction commits or rolls back. Use a row lock when a transaction must read a row before it decides how to update related data.
