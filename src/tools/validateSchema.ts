@@ -21,7 +21,27 @@ export async function validateSchema(entityDefinitions: Record<string, BaseEntit
 		tables[column.table_name] = tables[column.table_name] ?? {};
 		tables[column.table_name][column.column_name] = column;
 	}
-	const indexes = await nativeQuery(sql`select * from pg_indexes idx where schemaname not ilike 'pg_%' and schemaname <> 'information_schema' and (${schema}::varchar is null or schemaname = ${schema});`);
+	const indexes = await nativeQuery(sql`
+		select
+			namespace.nspname as schemaname,
+			table_class.relname as tablename,
+			index_class.relname as indexname,
+			index_info.indisunique,
+			index_info.indnkeyatts as key_column_count,
+			first_column.attname as first_column
+		from pg_catalog.pg_index index_info
+		join pg_catalog.pg_class table_class on table_class.oid = index_info.indrelid
+		join pg_catalog.pg_class index_class on index_class.oid = index_info.indexrelid
+		join pg_catalog.pg_namespace namespace on namespace.oid = table_class.relnamespace
+		left join pg_catalog.pg_attribute first_column on
+			first_column.attrelid = table_class.oid and
+			first_column.attnum = index_info.indkey[0]
+		where
+			namespace.nspname not ilike 'pg_%' and
+			namespace.nspname <> 'information_schema' and
+			index_info.indpred is null and
+			(${schema}::varchar is null or namespace.nspname = ${schema});
+	`);
 
 	// Prep output arrays
 	const errors: SchemaValidationError[] = [];
@@ -77,8 +97,9 @@ export async function validateSchema(entityDefinitions: Record<string, BaseEntit
 			// Make sure there is a unique constraint / index on the column in question
 			const hasUniqueIndex = indexes.some(idx => {
 				return idx.tablename == tableName &&
-					idx.indexdef.split('USING')[1].includes('(' + columnName + ')') &&
-					idx.indexdef.includes('CREATE UNIQUE INDEX');
+					idx.first_column == columnName &&
+					idx.key_column_count == 1 &&
+					idx.indisunique;
 			});
 			if (!hasUniqueIndex) {
 				warnings.push(new SchemaValidationError('ORM-SV-3104', { entity: entityName, field: fieldName, table: tableName, column: columnName }));
@@ -101,7 +122,7 @@ export async function validateSchema(entityDefinitions: Record<string, BaseEntit
 			}
 
 			// Index check
-			const hasIndex = indexes.some(idx => idx.tablename == targetTable && idx.indexdef.split('USING')[1].includes('(' + columnName + ')'));
+			const hasIndex = indexes.some(idx => idx.tablename == targetTable && idx.first_column == columnName);
 			if (!hasIndex) {
 				warnings.push(new SchemaValidationError('ORM-SV-3113', { entity: entityName, field: fieldName, table: targetTable, column: columnName }));
 			}
@@ -139,7 +160,7 @@ export async function validateSchema(entityDefinitions: Record<string, BaseEntit
 			}
 
 			// Index check
-			const hasIndex = indexes.some(idx => idx.tablename == targetTable && idx.indexdef.split('USING')[1].includes('(' + columnName + ')'));
+			const hasIndex = indexes.some(idx => idx.tablename == targetTable && idx.first_column == columnName);
 			if (!hasIndex) {
 				warnings.push(new SchemaValidationError('ORM-SV-3133', { entity: entityName, field: fieldName, table: targetTable, column: columnName }));
 			}

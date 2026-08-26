@@ -286,6 +286,28 @@ describe('Postgres: validateSchema', () => {
 		expect(result.warnings.map(w => w.code)).not.toContain('ORM-SV-3133');
 	});
 
+	it('does not give a warning when a one-to-many foreign key is the first column in a composite index', async () => {
+		const result = await runValidationAgainstSchema(`
+			create table "user" (id bigserial primary key, full_name character varying not null, username character varying not null);
+			create table "todo_item" (id bigserial primary key, created_at timestamptz not null, description character varying not null, author_id bigint not null references "user");
+			alter table "user" add column favorite_todo_id bigint references "todo_item";
+			create index on "todo_item" (author_id, created_at);
+		`, `drop table if exists "user", "todo_item" cascade;`, entitySchema);
+		expect(result.valid).toBe(true);
+		expect(result.warnings.map(w => w.code)).not.toContain('ORM-SV-3133');
+	});
+
+	it('gives a warning when a one-to-many foreign key is not the first column in a composite index', async () => {
+		const result = await runValidationAgainstSchema(`
+			create table "user" (id bigserial primary key, full_name character varying not null, username character varying not null);
+			create table "todo_item" (id bigserial primary key, created_at timestamptz not null, description character varying not null, author_id bigint not null references "user");
+			alter table "user" add column favorite_todo_id bigint references "todo_item";
+			create index on "todo_item" (created_at, author_id);
+		`, `drop table if exists "user", "todo_item" cascade;`, entitySchema);
+		expect(result.valid).toBe(true);
+		expect(result.warnings.map(w => w.code)).toContain('ORM-SV-3133');
+	});
+
 	it('give a warning when indexes are missing but a one-to-one-inverse is defined', async () => {
 		const result = await runValidationAgainstSchema(`
 			create table "user" (id bigserial primary key, full_name character varying not null, username character varying not null);
@@ -302,6 +324,17 @@ describe('Postgres: validateSchema', () => {
 			create table "todo_item" (id bigserial primary key, created_at timestamptz not null, description character varying not null, author_id bigint not null references "user");
 			alter table "user" add column favorite_todo_id bigint references "todo_item";
 			create index on "user" (favorite_todo_id);
+		`, `drop table if exists "user", "todo_item" cascade;`, entitySchema);
+		expect(result.valid).toBe(true);
+		expect(result.warnings.map(w => w.code)).not.toContain('ORM-SV-3113');
+	});
+
+	it('does not give a warning when a one-to-one inverse foreign key is the first column in a composite index', async () => {
+		const result = await runValidationAgainstSchema(`
+			create table "user" (id bigserial primary key, full_name character varying not null, username character varying not null);
+			create table "todo_item" (id bigserial primary key, created_at timestamptz not null, description character varying not null, author_id bigint not null references "user");
+			alter table "user" add column favorite_todo_id bigint references "todo_item";
+			create index on "user" (favorite_todo_id, username);
 		`, `drop table if exists "user", "todo_item" cascade;`, entitySchema);
 		expect(result.valid).toBe(true);
 		expect(result.warnings.map(w => w.code)).not.toContain('ORM-SV-3113');
@@ -329,6 +362,17 @@ describe('Postgres: validateSchema', () => {
 		expect(result.valid).toBe(true);
 		expect(result.warnings.map(w => w.code)).not.toContain('ORM-SV-3104');
 	});
+
+	it('gives a warning when a one-to-one relation only has a composite unique constraint', async () => {
+		const result = await runValidationAgainstSchema(`
+			create table "user" (id bigserial primary key, full_name character varying not null, username character varying not null);
+			create table "todo_item" (id bigserial primary key, created_at timestamptz not null, description character varying not null, author_id bigint not null references "user");
+			alter table "user" add column favorite_todo_id bigint references "todo_item";
+			alter table "user" add constraint uniq_user_favorite_todo unique (favorite_todo_id, username);
+		`, `drop table if exists "user", "todo_item" cascade;`, entitySchema);
+		expect(result.valid).toBe(true);
+		expect(result.warnings.map(w => w.code)).toContain('ORM-SV-3104');
+	});
 	
 	it('not give a warning when one-to-one does have a unique index', async () => {
 		const result = await runValidationAgainstSchema(`
@@ -339,6 +383,33 @@ describe('Postgres: validateSchema', () => {
 		`, `drop table if exists "user", "todo_item" cascade;`, entitySchema);
 		expect(result.valid).toBe(true);
 		expect(result.warnings.map(w => w.code)).not.toContain('ORM-SV-3104');
+	});
+
+	it('gives a warning when a one-to-one relation only has a composite unique index', async () => {
+		const result = await runValidationAgainstSchema(`
+			create table "user" (id bigserial primary key, full_name character varying not null, username character varying not null);
+			create table "todo_item" (id bigserial primary key, created_at timestamptz not null, description character varying not null, author_id bigint not null references "user");
+			alter table "user" add column favorite_todo_id bigint references "todo_item";
+			create unique index on "user" (favorite_todo_id, username);
+		`, `drop table if exists "user", "todo_item" cascade;`, entitySchema);
+		expect(result.valid).toBe(true);
+		expect(result.warnings.map(w => w.code)).toContain('ORM-SV-3104');
+	});
+
+	it('does not use partial indexes to validate relations', async () => {
+		const result = await runValidationAgainstSchema(`
+			create table "user" (id bigserial primary key, full_name character varying not null, username character varying not null);
+			create table "todo_item" (id bigserial primary key, created_at timestamptz not null, description character varying not null, author_id bigint not null references "user");
+			alter table "user" add column favorite_todo_id bigint references "todo_item";
+			create index on "todo_item" (author_id, created_at) where description <> '';
+			create unique index on "user" (favorite_todo_id) where username <> '';
+		`, `drop table if exists "user", "todo_item" cascade;`, entitySchema);
+		expect(result.valid).toBe(true);
+		expect(result.warnings.map(w => w.code)).toEqual(expect.arrayContaining([
+			'ORM-SV-3104',
+			'ORM-SV-3113',
+			'ORM-SV-3133',
+		]));
 	});
 
 });
