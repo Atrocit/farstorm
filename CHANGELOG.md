@@ -1,5 +1,19 @@
 # farstorm
 
+## 1.2.0
+
+### Minor Changes
+
+- 71c5be8: Add PostgreSQL row-lock modes and wait behavior to `findOne` and `findMany`.
+- bf655b1: Add a per-entity `auditLogging` setting. Set it to `'DISABLED'` in `defineEntity()` to exclude that entity from audit logging. The setting defaults to `'ENABLED'`.
+- 85caf91: Add read-only entity fields and make the known-column write boundary explicit.
+
+### Patch Changes
+
+- a743e40: Keep batch-insert audit diffs associated with the entity that produced each diff.
+- bf82c81: Serialize Json field values before SQL formatting so arrays and other JSON values persist correctly.
+- 4971de1: Recognize composite relation indexes during schema validation while requiring single-column indexes for one-to-one uniqueness.
+
 ## 1.1.2
 
 ### Patch Changes

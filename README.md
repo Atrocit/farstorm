@@ -167,4 +167,4 @@ Step 1: Build by running `pnpm build`
 Step 2: Run `pnpm changeset version`, the new version will automatically be determined by the changesets
 Step 3: Review and commit the changes made by changeset
 Step 4: Run `pnpm changeset publish`
-Step 5: `git push; git push --tags` the newly created commit onto `master`, including the version tags
+Step 5: `git push; git push --tags` the newly created commit onto `main`, including the version tags
