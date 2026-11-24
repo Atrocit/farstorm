@@ -16,7 +16,7 @@
     "@types/pg-format": "^1.0.5",
     "@typescript-eslint/eslint-plugin": "^8.41.0",
     "@typescript-eslint/parser": "^8.41.0",
-    "@vitest/coverage-v8": "3.2.4",
+    "@vitest/coverage-v8": "4.1.12",
     "eslint": "^9.34.0",
     "eslint-import-resolver-typescript": "^4.4.4",
     "eslint-plugin-import": "^2.32.0",
@@ -24,7 +24,7 @@
     "rimraf": "^6.0.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.2",
-    "vitest": "3.2.4"
+    "vitest": "4.1.12"
   },
   "dependencies": {
     "events": "^3.3.0",
