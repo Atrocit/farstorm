@@ -19,6 +19,7 @@ import { validateSchema as validateSchemaActual } from './tools/validateSchema.j
 import { InputTypeByName } from './types/InputType.js';
 import { RawSqlType } from './types/RawSqlType.js';
 import { isOrmRelationGetter, ormRelationGetter } from './relations/ormRelationGetter.js';
+import { LazyRelationPromise } from './relations/LazyRelationPromise.js';
 import { isNullable } from './entities/Nullable.js';
 
 export type QueryStatsQuery = { query: string, params: any[], durationInMs: number };
@@ -269,7 +270,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 					continue;
 				}
 
-				const getOneToOneRelation = async () => {
+				const loadOneToOneRelation = async () => {
 					if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, relation: relationName, operation: 'resolve-one-to-one-owned' });
 
 					let cachedPromise = ownedRelationCache.find(entityName, relationName);
@@ -285,6 +286,8 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 					}
 					return rawResult == null ? null : createOutputTypeFromRawSqlType(relation.entity, rawResult);
 				};
+				const oneToOneTarget = { entity: relation.entity, id: this.entityDefinitions[relation.entity].fields.id.toType(result[relationRawFieldName]) };
+				const getOneToOneRelation = () => new LazyRelationPromise(loadOneToOneRelation, oneToOneTarget);
 				getOneToOneRelation[ormRelationGetter] = true;
 				Object.defineProperty(output, relationName, { enumerable: true, configurable: true, get: getOneToOneRelation, set: (value) => { Object.defineProperty(output, relationName, { value }); } });
 			}
@@ -300,7 +303,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 					continue;
 				}
 
-				const getManyToOneRelation = async () => {
+				const loadManyToOneRelation = async () => {
 					if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, relation: relationName, operation: 'resolve-many-to-one' });
 
 					let cachedPromise = ownedRelationCache.find(entityName, relationName);
@@ -316,6 +319,8 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 					}
 					return rawResult == null ? null : createOutputTypeFromRawSqlType(relation.entity, rawResult);
 				};
+				const manyToOneTarget = { entity: relation.entity, id: this.entityDefinitions[relation.entity].fields.id.toType(result[relationRawFieldName]) };
+				const getManyToOneRelation = () => new LazyRelationPromise(loadManyToOneRelation, manyToOneTarget);
 				getManyToOneRelation[ormRelationGetter] = true;
 				Object.defineProperty(output, relationName, { enumerable: true, configurable: true, get: getManyToOneRelation, set: (value) => { Object.defineProperty(output, relationName, { value }); } });
 			}
@@ -324,7 +329,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 			for (const relationName of Object.keys(entityDefinition.oneToOneInverse)) {
 				const relation = entityDefinition.oneToOneInverse[relationName];
 
-				const getOneToOneInverseRelation = async () => {
+				const loadOneToOneInverseRelation = async () => {
 					if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, relation: relationName, operation: 'resolve-one-to-one-inverse' });
 
 					let cachedPromise = inverseRelationCache.find(entityName, relationName);
@@ -344,6 +349,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 						return item != null ? createOutputTypeFromRawSqlType(relation.entity, item) : null;
 					}
 				};
+				const getOneToOneInverseRelation = () => new LazyRelationPromise(loadOneToOneInverseRelation);
 				getOneToOneInverseRelation[ormRelationGetter] = true;
 				Object.defineProperty(output, relationName, { enumerable: true, configurable: true, get: getOneToOneInverseRelation });
 			}
@@ -352,7 +358,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 			for (const relationName of Object.keys(entityDefinition.oneToMany)) {
 				const relation = entityDefinition.oneToMany[relationName];
 
-				const getOneToMany = async () => {
+				const loadOneToMany = async () => {
 					if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, relation: relationName, operation: 'resolve-one-to-many' });
 
 					let cachedPromise = inverseRelationCache.find(entityName, relationName);
@@ -368,6 +374,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 						.filter(cachedEntity => cachedEntity != null)
 						.map(cachedEntity => createOutputTypeFromRawSqlType(relation.entity, cachedEntity!));
 				};
+				const getOneToMany = () => new LazyRelationPromise(loadOneToMany);
 				getOneToMany[ormRelationGetter] = true;
 				Object.defineProperty(output, relationName, { enumerable: true, configurable: true, get: getOneToMany });
 			}
@@ -702,8 +709,16 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 					// Right now we assume they haven't, but we should probably check the local cache, see if this relation was ever fetched, and if so try and see if the values were modified
 					if (isOrmRelationGetter(e, relation)) continue;
 
+					// A relation promise we handed out ourselves (copied off an entity by a spread for example) already knows what it points to, no need to fetch it
+					const relationValue = e[relation];
+					const knownTarget = LazyRelationPromise.targetOf(relationValue);
+					if (knownTarget != null && knownTarget.entity == relationDefinition.entity) {
+						rawEntityFieldsToWrite[relationRawFieldName] = knownTarget.id;
+						continue;
+					}
+
 					// If the relation is nullable and the value is null, we should set the field to null
-					const resolvedRelation: any = await e[relation];
+					const resolvedRelation: any = await relationValue;
 					if (!isNullable(relationDefinition.nullable) && resolvedRelation == null) throw new OrmError('ORM-1302', { entity: entityName as string, relation, operation: 'saveMany' }, queryStatistics.queries);
 					if (resolvedRelation != null && resolvedRelation.id == null) throw new OrmError('ORM-1303', { entity: entityName as string, relation, operation: 'saveMany' }, queryStatistics.queries);
 					rawEntityFieldsToWrite[relationRawFieldName] = resolvedRelation?.id ?? null;
@@ -717,8 +732,16 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 					// Right now we assume they haven't, but we should probably check the local cache, see if this relation was ever fetched, and if so try and see if the values were modified
 					if (isOrmRelationGetter(e, relation)) continue;
 
+					// A relation promise we handed out ourselves (copied off an entity by a spread for example) already knows what it points to, no need to fetch it
+					const relationValue = e[relation];
+					const knownTarget = LazyRelationPromise.targetOf(relationValue);
+					if (knownTarget != null && knownTarget.entity == relationDefinition.entity) {
+						rawEntityFieldsToWrite[relationRawFieldName] = knownTarget.id;
+						continue;
+					}
+
 					// If the relation is nullable and the value is null, we should set the field to null
-					const resolvedRelation: any = await e[relation];
+					const resolvedRelation: any = await relationValue;
 					if (!isNullable(relationDefinition.nullable) && resolvedRelation == null) throw new OrmError('ORM-1304', { entity: entityName as string, relation, operation: 'saveMany' }, queryStatistics.queries);
 					if (resolvedRelation != null && resolvedRelation.id == null) throw new OrmError('ORM-1305', { entity: entityName as string, relation, operation: 'saveMany' }, queryStatistics.queries);
 					rawEntityFieldsToWrite[relationRawFieldName] = resolvedRelation?.id ?? null;

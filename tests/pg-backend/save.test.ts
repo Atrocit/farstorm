@@ -151,6 +151,41 @@ describe('Postgres: saveOne/saveMany', () => {
 		await cleanup();
 	});
 
+	it('save() of a spread copy keeps its relations without fetching them', async () => {
+		const { db, cleanup } = await setup();
+
+		const eventId = await db.inTransaction(async ({ findOne, saveOne }) => {
+			const savedEvent = await saveOne('Event', { name: 'New Event', createdAt: new Date('2024-01-01T00:00:00Z'), organizer: findOne('User', '1') });
+			return savedEvent.id;
+		});
+
+		await db.inTransaction(async ({ findOne, saveOne, transactionStatistics }) => {
+			const event = await findOne('Event', eventId);
+			const updatedEvent = await saveOne('Event', { ...event, name: 'Updated Event' });
+
+			// One select for the event and one update, the organizer was never needed
+			expect(transactionStatistics.queries.map(q => q.query.trim().split(' ')[0])).toEqual([ 'select', 'update' ]);
+			expect(updatedEvent.name).toBe('Updated Event');
+
+			// A copy can be inserted as a new entity, taking the organizer along
+			const copiedEvent = await saveOne('Event', { ...event, id: undefined, name: 'Copied Event' });
+			expect(copiedEvent.id).not.toBe(event.id);
+			expect(transactionStatistics.queries.map(q => q.query.trim().split(' ')[0])).toEqual([ 'select', 'update', 'insert' ]);
+
+			// The relation is still there for whoever does want it
+			expect(hideRelations(await updatedEvent.organizer)).toEqual({ id: '1', fullName: 'John Doe', username: 'john' });
+			expect(hideRelations(await copiedEvent.organizer)).toEqual({ id: '1', fullName: 'John Doe', username: 'john' });
+		});
+
+		await db.inTransaction(async ({ findMany }) => {
+			const events = await findMany('Event', { orderBy: sql`id asc` });
+			expect(events.map(e => e.name)).toEqual([ 'Updated Event', 'Copied Event' ]);
+			for (const event of events) expect((await event.organizer)?.id).toBe('1');
+		});
+
+		await cleanup();
+	});
+
 	it('saveMany() can insert multiple entities in one go', async () => {
 		const { db, cleanup } = await setup();
 
