@@ -55,6 +55,21 @@ await farstorm.inTransaction(async orm => {
 });
 ```
 
+### Lazy relations
+
+A relation is fetched the first time you await it, not when you read the property. You can copy an entity with a spread, `Object.assign()` or `unwrap()` without querying relations you never use:
+
+```ts
+await farstorm.inTransaction(async orm => {
+	const todoItem = await orm.findOne('TodoItem', '1');
+
+	// Two queries: the select and the update. The assignee is saved as it was, without being fetched.
+	await orm.saveOne('TodoItem', { ...todoItem, finishedAt: new Date() });
+});
+```
+
+Await a relation inside the transaction that loaded its entity. A relation that is first awaited after that transaction ended rejects with `ORM-1000`.
+
 ### Audit logging
 
 After you enable audit logging with `farstorm.enableAuditLogging()`, all entities use `auditLogging: 'ENABLED'` by default. Set `auditLogging` to `'DISABLED'` in an entity definition to exclude that entity:
