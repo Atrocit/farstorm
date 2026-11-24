@@ -940,7 +940,7 @@ export class Farstorm<const ED extends BaseEntityDefinitions> extends EventEmitt
 			if (transactionControls == null) throw new OrmError('ORM-1000', { entity: entityName as string, operation: 'deleteWhere' });
 			const tableName = camelCaseToSnakeCase(entityName as string);
 
-			let sqlStatement = mergeSql({ sql: `delete from ${tableName} where`, params: [] }, whereClauseToSql(options.where), { sql: `returning *`, params: [] });
+			let sqlStatement = mergeSql({ sql: `delete from "${tableName}" where`, params: [] }, whereClauseToSql(options.where), { sql: `returning *`, params: [] });
 			if (this.auditLoggingEnabled && this.entityDefinitions[entityName].auditLogging == 'ENABLED') {
 				sqlStatement = {
 					sql: `
